@@ -133,6 +133,14 @@
     cursor:pointer;user-select:none;transition:all 0.15s;border:1px solid rgba(0,0,0,0.05);
   }
   .day-circle.active{background:var(--accent);color:#12141a;box-shadow:0 0 4px var(--accent)}
+  .rem-item-btns{display:flex;gap:4px;opacity:0;transition:opacity .12s;align-items:center;margin-left:4px}
+  .reminder-item:hover .rem-item-btns,.reminder-item:focus-within .rem-item-btns{opacity:1}
+  .rem-action-btn{
+    border:none;background:none;color:#94a3b8;cursor:pointer;font-size:12px;line-height:1;
+    padding:2px 4px;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:all 0.1s;
+  }
+  .rem-action-btn:hover{background:rgba(0,0,0,0.06);color:var(--ink)}
+  .rem-action-btn.del:hover{background:#fee2e2;color:#ef4444}
 
   #linkActions{
     position:fixed;display:none;align-items:center;gap:4px;z-index:1500;
@@ -963,23 +971,24 @@
     main.appendChild(txt);
     main.appendChild(meta);
     const btnsDiv = document.createElement("div");
-    btnsDiv.className = "head-btns";
-    btnsDiv.style.opacity = "0";
+    btnsDiv.className = "rem-item-btns";
     const editBtn = document.createElement("button");
-    editBtn.className = "del-item";
-    editBtn.style.opacity = "1";
+    editBtn.className = "rem-action-btn";
     editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
     editBtn.title = "Edit pengingat";
-    editBtn.addEventListener("click", function(){
+    editBtn.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+    editBtn.addEventListener("click", function(e){
+      e.stopPropagation();
       var editRow = makeReminderItem(card, item, body, true);
       row.parentNode.replaceChild(editRow, row);
     });
     const delBtn = document.createElement("button");
-    delBtn.className = "del-item";
-    delBtn.style.opacity = "1";
+    delBtn.className = "rem-action-btn del";
     delBtn.innerHTML = "&times;";
     delBtn.title = "Hapus pengingat";
-    delBtn.addEventListener("click", function(){
+    delBtn.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+    delBtn.addEventListener("click", function(e){
+      e.stopPropagation();
       card.items = card.items.filter(function(i){ return i.id !== item.id; });
       row.remove();
       save();
