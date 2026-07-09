@@ -679,6 +679,9 @@
       const title=document.createElement("div"); title.className="card-title";
       title.contentEditable="true"; title.spellcheck=false; title.textContent=card.title||(card.type==="todo"?"To-do":"Pengingat");
       title.addEventListener("input",()=>{ card.title=title.textContent; save(); redrawLinks(); });
+      title.addEventListener("pointerdown",e=>{ e.stopPropagation(); title.focus(); });
+      title.addEventListener("mousedown",e=>{ e.stopPropagation(); title.focus(); });
+      title.addEventListener("click",e=>{ e.stopPropagation(); title.focus(); });
       head.appendChild(title);
     }else{
       const sp=document.createElement("div"); sp.className="card-title"; head.appendChild(sp);
@@ -708,7 +711,8 @@
       const body=document.createElement("div"); body.className="note-body";
       body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
       body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
-      body.addEventListener("pointerdown",e=>e.stopPropagation());
+      body.addEventListener("pointerdown",e=>{ e.stopPropagation(); body.focus(); });
+      body.addEventListener("mousedown",e=>{ e.stopPropagation(); body.focus(); });
       body.addEventListener("click",e=>{ e.stopPropagation(); body.focus(); });
       el.appendChild(body);
     }else if(card.type==="todo"){
@@ -747,7 +751,8 @@
     chk.addEventListener("click",()=>{ item.done=!item.done; row.classList.toggle("done",item.done); save(); });
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
     txt.addEventListener("input",()=>{ item.text=sanitizeHTML(txt.innerHTML); save(); redrawLinks(); });
-    txt.addEventListener("pointerdown",e=>e.stopPropagation());
+    txt.addEventListener("pointerdown",e=>{ e.stopPropagation(); txt.focus(); });
+    txt.addEventListener("mousedown",e=>{ e.stopPropagation(); txt.focus(); });
     txt.addEventListener("click",e=>{ e.stopPropagation(); txt.focus(); });
     txt.addEventListener("keydown",e=>{
       if(e.key==="Enter"){ e.preventDefault();
@@ -776,6 +781,9 @@
       txtInput.type = "text";
       txtInput.placeholder = "Nama pengingat/tagihan…";
       txtInput.value = item.text || "";
+      txtInput.addEventListener("pointerdown", e => { e.stopPropagation(); txtInput.focus(); });
+      txtInput.addEventListener("mousedown", e => { e.stopPropagation(); txtInput.focus(); });
+      txtInput.addEventListener("click", e => { e.stopPropagation(); txtInput.focus(); });
       const catSel = document.createElement("select");
       catSel.className = "rem-input";
       ["Langganan", "Jadwal", "Umum"].forEach(function(c){
@@ -784,6 +792,9 @@
         if(item.category === c) opt.selected = true;
         catSel.appendChild(opt);
       });
+      catSel.addEventListener("pointerdown", e => e.stopPropagation());
+      catSel.addEventListener("mousedown", e => e.stopPropagation());
+      catSel.addEventListener("click", e => e.stopPropagation());
       const recurSel = document.createElement("select");
       recurSel.className = "rem-input";
       const recurOpts = [
@@ -798,6 +809,9 @@
         if((item.recurrence || "none") === o.val) opt.selected = true;
         recurSel.appendChild(opt);
       });
+      recurSel.addEventListener("pointerdown", e => e.stopPropagation());
+      recurSel.addEventListener("mousedown", e => e.stopPropagation());
+      recurSel.addEventListener("click", e => e.stopPropagation());
       const daysContainer = document.createElement("div");
       daysContainer.className = "rem-days-picker";
       daysContainer.style.display = item.recurrence === "weekly" ? "flex" : "none";
@@ -833,6 +847,9 @@
       dateInput.className = "rem-input";
       dateInput.type = "datetime-local";
       dateInput.value = item.datetime || "";
+      dateInput.addEventListener("pointerdown", e => { e.stopPropagation(); dateInput.focus(); });
+      dateInput.addEventListener("mousedown", e => { e.stopPropagation(); dateInput.focus(); });
+      dateInput.addEventListener("click", e => { e.stopPropagation(); dateInput.focus(); });
       const btns = document.createElement("div");
       btns.className = "rem-btn-row";
       const cancelBtn = document.createElement("button");
