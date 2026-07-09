@@ -72,6 +72,27 @@
   .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
   .todo-item:hover{background:rgba(0,0,0,.04)}
+  .todo-priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex: none;
+    margin-top: 5px;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+  }
+  .todo-priority-dot.medium {
+    background: #cbd5e1;
+  }
+  .todo-priority-dot.urgent {
+    background: #ef4444;
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+  }
+  .todo-priority-dot.low {
+    background: #22c55e;
+    box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+  }
   .chk{
     width:17px;height:17px;flex:none;margin-top:1px;border:1.8px solid #9aa2b1;border-radius:5px;
     cursor:pointer;background:#fff;position:relative;
@@ -1090,6 +1111,25 @@
     const chk=document.createElement("div"); chk.className="chk";
     chk.addEventListener("pointerdown",e=>e.stopPropagation());
     chk.addEventListener("click",()=>{ item.done=!item.done; row.classList.toggle("done",item.done); save(); });
+    
+    const dot=document.createElement("div");
+    const pVal=item.priority||"medium";
+    dot.className="todo-priority-dot "+pVal;
+    dot.title=pVal==="urgent"?"Urgent (Merah)": (pVal==="low"?"Rendah (Hijau)":"Sedang (Abu-abu)");
+    dot.addEventListener("pointerdown",e=>e.stopPropagation());
+    dot.addEventListener("mousedown",e=>e.stopPropagation());
+    dot.addEventListener("click",e=>{
+      e.stopPropagation();
+      let nextP="medium";
+      if(item.priority==="medium" || !item.priority) nextP="urgent";
+      else if(item.priority==="urgent") nextP="low";
+      else if(item.priority==="low") nextP="medium";
+      item.priority=nextP;
+      dot.className="todo-priority-dot "+nextP;
+      dot.title=nextP==="urgent"?"Urgent (Merah)": (nextP==="low"?"Rendah (Hijau)":"Sedang (Abu-abu)");
+      save();
+    });
+
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
     txt.addEventListener("input",()=>{ item.text=sanitizeHTML(txt.innerHTML); save(); redrawLinks(); });
     txt.addEventListener("pointerdown",e=>{ e.stopPropagation(); txt.focus(); });
@@ -1097,7 +1137,7 @@
     txt.addEventListener("click",e=>{ e.stopPropagation(); txt.focus(); });
     txt.addEventListener("keydown",e=>{
       if(e.key==="Enter"){ e.preventDefault();
-        const ni={id:uid(),text:"",done:false}; const idx=card.items.indexOf(item); card.items.splice(idx+1,0,ni);
+        const ni={id:uid(),text:"",done:false,priority:"medium"}; const idx=card.items.indexOf(item); card.items.splice(idx+1,0,ni);
         const node=makeTodoItem(card,ni,body); row.parentNode.insertBefore(node,row.nextSibling);
         node.querySelector(".todo-text").focus(); save(); redrawLinks();
       }
@@ -1105,7 +1145,10 @@
     const del=document.createElement("button"); del.className="del-item"; del.innerHTML="&times;"; del.title="Hapus tugas";
     del.addEventListener("pointerdown",e=>e.stopPropagation());
     del.addEventListener("click",()=>{ card.items=card.items.filter(x=>x.id!==item.id); row.remove(); save(); redrawLinks(); });
-    row.appendChild(chk); row.appendChild(txt); row.appendChild(del);
+    row.appendChild(chk);
+    row.appendChild(dot);
+    row.appendChild(txt);
+    row.appendChild(del);
     return row;
   }
 
