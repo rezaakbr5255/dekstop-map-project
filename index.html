@@ -85,6 +85,10 @@
   .del-item:hover{color:#ef4444}
   .add-item{margin-top:2px;border:none;background:none;color:#6b7280;font-size:12.5px;cursor:pointer;padding:6px 6px;text-align:left;border-radius:7px}
   .add-item:hover{background:rgba(0,0,0,.05);color:var(--ink)}
+  .card-title, .note-body, .todo-text, .rem-input, input, select, textarea, [contenteditable="true"] {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+  }
   .card.reminder{background:#f1f5f9}
   .reminder-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .reminder-item{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:8px;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.04);transition:all .15s}
@@ -705,6 +709,7 @@
       body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
       body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
       body.addEventListener("pointerdown",e=>e.stopPropagation());
+      body.addEventListener("click",e=>{ e.stopPropagation(); body.focus(); });
       el.appendChild(body);
     }else if(card.type==="todo"){
       const body=document.createElement("div"); body.className="todo-body";
@@ -743,6 +748,7 @@
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
     txt.addEventListener("input",()=>{ item.text=sanitizeHTML(txt.innerHTML); save(); redrawLinks(); });
     txt.addEventListener("pointerdown",e=>e.stopPropagation());
+    txt.addEventListener("click",e=>{ e.stopPropagation(); txt.focus(); });
     txt.addEventListener("keydown",e=>{
       if(e.key==="Enter"){ e.preventDefault();
         const ni={id:uid(),text:"",done:false}; const idx=card.items.indexOf(item); card.items.splice(idx+1,0,ni);
@@ -1001,7 +1007,7 @@
   function enableDrag(el,handle,card){
     handle.addEventListener("pointerdown",(e)=>{
       if(e.button!==0) return;
-      if(e.target.closest(".hbtn")) return;
+      if(e.target.closest(".hbtn") || e.target.closest(".card-title")) return;
       const startX=e.clientX, startY=e.clientY;
       const start=screenToWorld(startX,startY);
       const offX=start.x-card.x, offY=start.y-card.y;
