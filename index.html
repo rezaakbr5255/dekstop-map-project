@@ -100,9 +100,9 @@
   .badge-cat.jadwal{background:#dbeafe;color:#1e40af}
   .badge-cat.umum{background:#e2e8f0;color:#475569}
   .priority-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
-  .priority-dot.tinggi{background:#ef4444;box-shadow:0 0 4px #ef4444}
-  .priority-dot.sedang{background:#f59e0b;box-shadow:0 0 4px #f59e0b}
-  .priority-dot.rendah{background:#10b981;box-shadow:0 0 4px #10b981}
+  .priority-dot.merah{background:#ef4444;box-shadow:0 0 4px #ef4444}
+  .priority-dot.oranye{background:#f59e0b;box-shadow:0 0 4px #f59e0b}
+  .priority-dot.hijau{background:#10b981;box-shadow:0 0 4px #10b981}
   .rem-countdown{font-size:11px;font-weight:600;color:#64748b}
   .rem-countdown.approaching{color:#ef4444;animation:pulse-red 1.5s infinite}
   .rem-countdown.overdue{color:#b91c1c;font-weight:bold}
@@ -347,11 +347,11 @@
   }
   
   function calculateCountdown(datetimeStr){
-    if(!datetimeStr) return { text: "Belum diset", class: "" };
+    if(!datetimeStr) return { text: "Belum diset", class: "", dotClass: "" };
     const target = new Date(datetimeStr).getTime();
     const now = new Date().getTime();
     const diff = target - now;
-    if(diff <= 0) return { text: "Telah Lewat!", class: "overdue" };
+    if(diff <= 0) return { text: "Telah Lewat!", class: "overdue", dotClass: "merah" };
     const d = Math.floor(diff / (1000 * 60 * 60 * 24));
     const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -359,20 +359,25 @@
     if(d > 0) text = `${d}h ${h}j lagi`;
     else if(h > 0) text = `${h}j ${m}m lagi`;
     else text = `${m}m lagi`;
-    const classVal = diff < (24 * 60 * 60 * 1000) ? "approaching" : "";
-    return { text, class: classVal };
+    let classVal = "";
+    let dotClass = "hijau";
+    if(d <= 3){ classVal = "approaching"; dotClass = "merah"; }
+    else if(d <= 5){ dotClass = "oranye"; }
+    return { text, class: classVal, dotClass };
   }
 
   function tickCountdowns(){
     document.querySelectorAll(".reminder-item").forEach(itemEl=>{
       if(itemEl.classList.contains("done")) return;
       const valEl = itemEl.querySelector(".rem-countdown");
+      const dotEl = itemEl.querySelector(".priority-dot");
       if(!valEl) return;
       const dt = valEl.dataset.datetime;
       if(!dt) return;
       const res = calculateCountdown(dt);
       valEl.textContent = res.text;
       valEl.className = "rem-countdown " + res.class;
+      if(dotEl) dotEl.className = "priority-dot " + res.dotClass;
     });
   }
 
@@ -707,7 +712,8 @@
     return row;
   }
 
-  function makeReminderItem(card, item, body, isEditing = false){
+  function makeReminderItem(card, item, body, isEditing){
+    if(isEditing === undefined) isEditing = false;
     const row = document.createElement("div");
     row.className = "reminder-item" + (item.done ? " done" : "");
     row.dataset.id = item.id;
@@ -719,26 +725,14 @@
       txtInput.type = "text";
       txtInput.placeholder = "Nama pengingat/tagihan…";
       txtInput.value = item.text || "";
-      const grid = document.createElement("div");
-      grid.className = "rem-grid-inputs";
       const catSel = document.createElement("select");
       catSel.className = "rem-input";
-      ["Langganan", "Jadwal", "Umum"].forEach(c=>{
+      ["Langganan", "Jadwal", "Umum"].forEach(function(c){
         const opt = document.createElement("option");
         opt.value = c; opt.textContent = c;
         if(item.category === c) opt.selected = true;
         catSel.appendChild(opt);
       });
-      const priSel = document.createElement("select");
-      priSel.className = "rem-input";
-      ["Tinggi", "Sedang", "Rendah"].forEach(p=>{
-        const opt = document.createElement("option");
-        opt.value = p; opt.textContent = p;
-        if(item.priority === p) opt.selected = true;
-        priSel.appendChild(opt);
-      });
-      grid.appendChild(catSel);
-      grid.appendChild(priSel);
       const dateInput = document.createElement("input");
       dateInput.className = "rem-input";
       dateInput.type = "datetime-local";
@@ -748,30 +742,37 @@
       const cancelBtn = document.createElement("button");
       cancelBtn.className = "rem-btn cancel";
       cancelBtn.textContent = "Batal";
-      cancelBtn.addEventListener("click", ()=>{
+      cancelBtn.addEventListener("click", function(){
         if(!item.text && !item.datetime){
-          card.items = card.items.filter(i=>i.id !== item.id);
+          card.items = card.items.filter(function(i){ return i.id !== item.id; });
         }
         renderReminderList(card, body);
       });
       const saveBtn = document.createElement("button");
       saveBtn.className = "rem-btn save";
       saveBtn.textContent = "Simpan";
-      saveBtn.addEventListener("click", ()=>{
-        if(!txtInput.value.trim()){
+      saveBtn.addEventListener("click", function(){
+        var tVal = txtInput.value.trim();
+        if(!tVal){
           alert("Nama pengingat tidak boleh kosong.");
           return;
         }
-        item.text = sanitizeHTML(txtInput.value.trim());
+        item.text = tVal;
         item.category = catSel.value;
-        item.priority = priSel.value;
         item.datetime = dateInput.value;
-        save();
+        item.done = false;
+        clearTimeout(saveTimer);
+        try{
+          localStorage.setItem(KEY,JSON.stringify(state));
+          statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
+        }catch(e){
+          statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
+        }
         renderReminderList(card, body);
         redrawLinks();
       });
       row.appendChild(txtInput);
-      row.appendChild(grid);
+      row.appendChild(catSel);
       row.appendChild(dateInput);
       btns.appendChild(cancelBtn);
       btns.appendChild(saveBtn);
@@ -783,9 +784,8 @@
     remRow.className = "rem-row";
     const chk = document.createElement("div");
     chk.className = "chk";
-    chk.addEventListener("click", ()=>{
+    chk.addEventListener("click", function(){
       item.done = !item.done;
-      row.classList.toggle("done", item.done);
       save();
       renderReminderList(card, body);
       redrawLinks();
@@ -797,8 +797,13 @@
     txt.textContent = item.text || "";
     const meta = document.createElement("div");
     meta.className = "rem-meta";
+    const countdown = calculateCountdown(item.datetime);
     const dot = document.createElement("span");
-    dot.className = "priority-dot " + (item.priority || "Rendah").toLowerCase();
+    if(item.done){
+      dot.className = "priority-dot hijau";
+    } else {
+      dot.className = "priority-dot " + countdown.dotClass;
+    }
     const cat = document.createElement("span");
     cat.className = "badge-cat " + (item.category || "Umum").toLowerCase();
     cat.textContent = item.category || "Umum";
@@ -809,9 +814,8 @@
       cd.classList.add("done");
     } else {
       cd.dataset.datetime = item.datetime || "";
-      const res = calculateCountdown(item.datetime);
-      cd.textContent = res.text;
-      cd.classList.add(res.class);
+      cd.textContent = countdown.text;
+      if(countdown.class) cd.classList.add(countdown.class);
     }
     meta.appendChild(dot);
     meta.appendChild(cat);
@@ -820,20 +824,23 @@
     main.appendChild(meta);
     const btnsDiv = document.createElement("div");
     btnsDiv.className = "head-btns";
+    btnsDiv.style.opacity = "0";
     const editBtn = document.createElement("button");
     editBtn.className = "del-item";
+    editBtn.style.opacity = "1";
     editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
     editBtn.title = "Edit pengingat";
-    editBtn.addEventListener("click", ()=>{
-      const editRow = makeReminderItem(card, item, body, true);
+    editBtn.addEventListener("click", function(){
+      var editRow = makeReminderItem(card, item, body, true);
       row.parentNode.replaceChild(editRow, row);
     });
     const delBtn = document.createElement("button");
     delBtn.className = "del-item";
+    delBtn.style.opacity = "1";
     delBtn.innerHTML = "&times;";
     delBtn.title = "Hapus pengingat";
-    delBtn.addEventListener("click", ()=>{
-      card.items = card.items.filter(i=>i.id !== item.id);
+    delBtn.addEventListener("click", function(){
+      card.items = card.items.filter(function(i){ return i.id !== item.id; });
       row.remove();
       save();
       redrawLinks();
@@ -850,28 +857,24 @@
   function renderReminderList(card, body){
     body.innerHTML = "";
     card.items = card.items || [];
-    const priValue = { "Tinggi": 3, "Sedang": 2, "Rendah": 1 };
-    const sorted = [...card.items].sort((a, b)=>{
+    var sorted = card.items.slice().sort(function(a, b){
       if(a.done !== b.done) return a.done ? 1 : -1;
-      const priA = priValue[a.priority] || 1;
-      const priB = priValue[b.priority] || 1;
-      if(priA !== priB) return priB - priA;
-      const tA = a.datetime ? new Date(a.datetime).getTime() : Infinity;
-      const tB = b.datetime ? new Date(b.datetime).getTime() : Infinity;
+      var tA = a.datetime ? new Date(a.datetime).getTime() : Infinity;
+      var tB = b.datetime ? new Date(b.datetime).getTime() : Infinity;
       return tA - tB;
     });
-    sorted.forEach(it=>{
+    sorted.forEach(function(it){
       body.appendChild(makeReminderItem(card, it, body));
     });
-    const add = document.createElement("button");
+    var add = document.createElement("button");
     add.className = "add-item";
     add.textContent = "+ Tambah Pengingat";
-    add.addEventListener("pointerdown", e=>e.stopPropagation());
-    add.addEventListener("click", ()=>{
-      const ni = { id: uid(), text: "", category: "Umum", priority: "Rendah", datetime: "", done: false };
+    add.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+    add.addEventListener("click", function(){
+      var ni = { id: uid(), text: "", category: "Umum", datetime: "", done: false };
       card.items.push(ni);
-      const editRow = makeReminderItem(card, ni, body, true);
-      body.appendChild(editRow);
+      var editRow = makeReminderItem(card, ni, body, true);
+      body.insertBefore(editRow, add);
       editRow.querySelector(".rem-input").focus();
     });
     body.appendChild(add);
@@ -966,7 +969,7 @@
   }
   function addReminder(){
     const c=screenToWorld(board.clientWidth/2,board.clientHeight/2);
-    const card={id:uid(),type:"reminder",x:Math.round(c.x-130),y:Math.round(c.y-100),w:320,h:400,title:"Pengingat",items:[]};
+    const card={id:uid(),type:"reminder",x:Math.round(c.x-130),y:Math.round(c.y-100),w:320,title:"Pengingat",items:[]};
     state.cards.push(card); const el=makeCard(card); save(); redrawLinks();
     const addBtn = el.querySelector(".add-item");
     if(addBtn) addBtn.click();
