@@ -61,6 +61,13 @@
     overflow-y:auto;border-radius:0 0 12px 12px;
   }
   .note-body:empty::before{content:attr(data-ph);color:rgba(0,0,0,.35)}
+  .note-body ul, .note-body ol {
+    margin: 0;
+    padding-left: 20px;
+  }
+  .note-body li {
+    margin-bottom: 2.5px;
+  }
 
   .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
@@ -408,7 +415,7 @@
   function sanitizeHTML(html){
     if(!html) return "";
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const allowedTags = ['B', 'I', 'U', 'STRIKE', 'SPAN', 'STRONG', 'EM', 'BR', 'DIV', 'P'];
+    const allowedTags = ['B', 'I', 'U', 'STRIKE', 'SPAN', 'STRONG', 'EM', 'BR', 'DIV', 'P', 'UL', 'OL', 'LI'];
     function clean(node) {
       const children = Array.from(node.childNodes);
       for (let child of children) {
@@ -418,8 +425,13 @@
             while (child.firstChild) parent.insertBefore(child.firstChild, child);
             parent.removeChild(child);
           } else {
-            while (child.attributes.length > 0) {
-              child.removeAttribute(child.attributes[0].name);
+            const attrs = Array.from(child.attributes);
+            for (let attr of attrs) {
+              if (child.nodeName === "OL" && attr.name === "type") {
+                // Keep type attribute
+              } else {
+                child.removeAttribute(attr.name);
+              }
             }
             clean(child);
           }
@@ -929,6 +941,49 @@
       body.addEventListener("pointerdown",e=>{ e.stopPropagation(); body.focus(); });
       body.addEventListener("mousedown",e=>{ e.stopPropagation(); body.focus(); });
       body.addEventListener("click",e=>{ e.stopPropagation(); body.focus(); });
+      body.addEventListener("keydown", e => {
+        if(e.key === " "){
+          const sel = window.getSelection();
+          if(!sel.rangeCount) return;
+          const range = sel.getRangeAt(0);
+          const node = range.startContainer;
+          const offset = range.startOffset;
+          if(node.nodeType === Node.TEXT_NODE){
+            const text = node.textContent.substring(0, offset);
+            if(text === "-" || text === "*"){
+              e.preventDefault();
+              range.setStart(node, 0);
+              range.setEnd(node, offset);
+              range.deleteContents();
+              document.execCommand("insertUnorderedList");
+              body.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            else if(text === "1."){
+              e.preventDefault();
+              range.setStart(node, 0);
+              range.setEnd(node, offset);
+              range.deleteContents();
+              document.execCommand("insertOrderedList");
+              body.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            else if(text.toLowerCase() === "a."){
+              e.preventDefault();
+              range.setStart(node, 0);
+              range.setEnd(node, offset);
+              range.deleteContents();
+              document.execCommand("insertOrderedList");
+              setTimeout(() => {
+                const innerSel = window.getSelection();
+                if(innerSel.rangeCount) {
+                  const ol = innerSel.getRangeAt(0).startContainer.parentElement.closest("ol");
+                  if (ol) ol.setAttribute("type", text.includes("A") ? "A" : "a");
+                }
+                body.dispatchEvent(new Event("input", { bubbles: true }));
+              }, 0);
+            }
+          }
+        }
+      });
       el.appendChild(body);
     }else if(card.type==="todo"){
       const body=document.createElement("div"); body.className="todo-body";
