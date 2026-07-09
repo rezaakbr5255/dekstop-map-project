@@ -148,6 +148,26 @@
   }
   .rem-action-btn:hover{background:rgba(0,0,0,0.06);color:var(--ink)}
   .rem-action-btn.del:hover{background:#fee2e2;color:#ef4444}
+  .custom-dropdown{position:relative;display:inline-block;min-width:90px}
+  .custom-dropdown-display{
+    background:#fff;border:1px solid rgba(0,0,0,0.15);border-radius:5px;padding:4px 22px 4px 6px;
+    font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap;color:var(--ink);
+    position:relative;
+  }
+  .custom-dropdown-display::after{
+    content:'▾';position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10px;color:#94a3b8;pointer-events:none;
+  }
+  .custom-dropdown-menu{
+    position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #cbd5e1;border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;margin-top:2px;overflow:hidden;
+    display:none;
+  }
+  .custom-dropdown-menu.open{display:block}
+  .custom-dropdown-opt{
+    padding:6px 8px;font-size:12px;cursor:pointer;color:var(--ink);transition:background 0.08s;
+  }
+  .custom-dropdown-opt:hover{background:#f1f5f9}
+  .custom-dropdown-opt.selected{background:#e0f2fe;font-weight:600}
   .custom-datetime-picker {
     background: #fff;
     border: 1px solid #cbd5e1;
@@ -496,6 +516,57 @@
       d.setMonth(d.getMonth() + 1);
     }
     return toLocalISOString(d);
+  }
+
+  function createCustomDropdown(options, selectedVal, onChange){
+    const wrap = document.createElement("div");
+    wrap.className = "custom-dropdown";
+    const display = document.createElement("div");
+    display.className = "custom-dropdown-display";
+    const menu = document.createElement("div");
+    menu.className = "custom-dropdown-menu";
+    let currentVal = selectedVal;
+    function renderDisplay(){
+      const opt = options.find(o => o.val === currentVal) || options[0];
+      display.textContent = opt.text;
+    }
+    renderDisplay();
+    function renderMenu(){
+      menu.innerHTML = "";
+      options.forEach(function(o){
+        const item = document.createElement("div");
+        item.className = "custom-dropdown-opt" + (o.val === currentVal ? " selected" : "");
+        item.textContent = o.text;
+        item.addEventListener("pointerdown", function(e){
+          e.stopPropagation();
+          e.preventDefault();
+          currentVal = o.val;
+          renderDisplay();
+          menu.classList.remove("open");
+          if(onChange) onChange(currentVal);
+        });
+        menu.appendChild(item);
+      });
+    }
+    renderMenu();
+    display.addEventListener("pointerdown", function(e){
+      e.stopPropagation();
+      e.preventDefault();
+      if(menu.classList.contains("open")){
+        menu.classList.remove("open");
+      }else{
+        renderMenu();
+        menu.classList.add("open");
+      }
+    });
+    wrap.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+    document.addEventListener("pointerdown", function handler(e){
+      if(!wrap.contains(e.target)){ menu.classList.remove("open"); }
+    });
+    wrap.getValue = function(){ return currentVal; };
+    wrap.appendChild(display);
+    wrap.appendChild(menu);
+    return wrap;
   }
 
   function createCustomDateTimePicker(initialValue, onApply) {
@@ -1054,34 +1125,10 @@
       txtInput.addEventListener("pointerdown", e => { e.stopPropagation(); txtInput.focus(); });
       txtInput.addEventListener("mousedown", e => { e.stopPropagation(); txtInput.focus(); });
       txtInput.addEventListener("click", e => { e.stopPropagation(); txtInput.focus(); });
-      const catSel = document.createElement("select");
-      catSel.className = "rem-input";
-      ["Langganan", "Jadwal", "Umum"].forEach(function(c){
-        const opt = document.createElement("option");
-        opt.value = c; opt.textContent = c;
-        if(item.category === c) opt.selected = true;
-        catSel.appendChild(opt);
-      });
-      catSel.addEventListener("pointerdown", e => e.stopPropagation());
-      catSel.addEventListener("mousedown", e => e.stopPropagation());
-      catSel.addEventListener("click", e => e.stopPropagation());
-      const recurSel = document.createElement("select");
-      recurSel.className = "rem-input";
-      const recurOpts = [
-        { val: "none", text: "Sekali Saja" },
-        { val: "daily", text: "Tiap Hari" },
-        { val: "weekly", text: "Hari Tertentu" },
-        { val: "monthly", text: "Sebulan Sekali" }
-      ];
-      recurOpts.forEach(function(o){
-        const opt = document.createElement("option");
-        opt.value = o.val; opt.textContent = o.text;
-        if((item.recurrence || "none") === o.val) opt.selected = true;
-        recurSel.appendChild(opt);
-      });
-      recurSel.addEventListener("pointerdown", e => e.stopPropagation());
-      recurSel.addEventListener("mousedown", e => e.stopPropagation());
-      recurSel.addEventListener("click", e => e.stopPropagation());
+      const catSel = createCustomDropdown(
+        [{val:"Langganan",text:"Langganan"},{val:"Jadwal",text:"Jadwal"},{val:"Umum",text:"Umum"}],
+        item.category || "Umum"
+      );
       const daysContainer = document.createElement("div");
       daysContainer.className = "rem-days-picker";
       daysContainer.style.display = item.recurrence === "weekly" ? "flex" : "none";
@@ -1099,7 +1146,9 @@
         const circle = document.createElement("div");
         circle.className = "day-circle" + (activeDays.has(d.val) ? " active" : "");
         circle.textContent = d.label;
-        circle.addEventListener("click", function(){
+        circle.addEventListener("pointerdown", function(e){
+          e.stopPropagation();
+          e.preventDefault();
           if(activeDays.has(d.val)) {
             activeDays.delete(d.val);
             circle.classList.remove("active");
@@ -1110,9 +1159,11 @@
         });
         daysContainer.appendChild(circle);
       });
-      recurSel.addEventListener("change", function(){
-        daysContainer.style.display = recurSel.value === "weekly" ? "flex" : "none";
-      });
+      const recurSel = createCustomDropdown(
+        [{val:"none",text:"Sekali Saja"},{val:"daily",text:"Tiap Hari"},{val:"weekly",text:"Hari Tertentu"},{val:"monthly",text:"Sebulan Sekali"}],
+        item.recurrence || "none",
+        function(val){ daysContainer.style.display = val === "weekly" ? "flex" : "none"; }
+      );
       const dateDisplay = document.createElement("div");
       dateDisplay.className = "rem-input";
       dateDisplay.style.cursor = "pointer";
@@ -1151,9 +1202,7 @@
           row.insertBefore(pickerEl, btns);
         }
       }
-      dateDisplay.addEventListener("pointerdown", e => { e.stopPropagation(); togglePicker(); });
-      dateDisplay.addEventListener("mousedown", e => { e.stopPropagation(); togglePicker(); });
-      dateDisplay.addEventListener("click", e => { e.stopPropagation(); togglePicker(); });
+      dateDisplay.addEventListener("pointerdown", e => { e.stopPropagation(); e.preventDefault(); togglePicker(); });
       const btns = document.createElement("div");
       btns.className = "rem-btn-row";
       const cancelBtn = document.createElement("button");
@@ -1175,8 +1224,8 @@
           return;
         }
         item.text = tVal;
-        item.category = catSel.value;
-        item.recurrence = recurSel.value;
+        item.category = catSel.getValue();
+        item.recurrence = recurSel.getValue();
         item.recurDays = Array.from(activeDays);
         item.datetime = tempDatetime;
         item.done = false;
