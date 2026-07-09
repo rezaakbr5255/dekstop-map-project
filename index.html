@@ -122,6 +122,13 @@
   .rem-btn.save:hover{filter:brightness(1.08)}
   .rem-btn.cancel{background:rgba(0,0,0,.08);color:var(--ink)}
   .rem-btn.cancel:hover{background:rgba(0,0,0,.15)}
+  .rem-days-picker{display:flex;gap:4px;margin-top:2px;flex-wrap:nowrap;justify-content:space-between}
+  .day-circle{
+    width:22px;height:22px;border-radius:50%;background:#e2e8f0;color:#475569;
+    font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;user-select:none;transition:all 0.15s;border:1px solid rgba(0,0,0,0.05);
+  }
+  .day-circle.active{background:var(--accent);color:#12141a;box-shadow:0 0 4px var(--accent)}
 
   #linkActions{
     position:fixed;display:none;align-items:center;gap:4px;z-index:1500;
@@ -344,6 +351,43 @@
     } else {
       document.execCommand(command, false, null);
     }
+  }
+
+  function toLocalISOString(date) {
+    const ten = (i) => (i < 10 ? '0' : '') + i;
+    const Y = date.getFullYear();
+    const M = ten(date.getMonth() + 1);
+    const D = ten(date.getDate());
+    const H = ten(date.getHours());
+    const Min = ten(date.getMinutes());
+    return `${Y}-${M}-${D}T${H}:${Min}`;
+  }
+
+  function getNextOccurrence(currentDatetimeStr, recurrence, recurDays){
+    let d = new Date(currentDatetimeStr);
+    if(isNaN(d.getTime())) d = new Date();
+    if(recurrence === "daily"){
+      d.setDate(d.getDate() + 1);
+    } else if(recurrence === "weekly"){
+      if(!recurDays || recurDays.length === 0) {
+        d.setDate(d.getDate() + 7);
+      } else {
+        let found = false;
+        for(let i = 1; i <= 7; i++){
+          let temp = new Date(d);
+          temp.setDate(d.getDate() + i);
+          if(recurDays.includes(temp.getDay())){
+            d = temp;
+            found = true;
+            break;
+          }
+        }
+        if(!found) d.setDate(d.getDate() + 7);
+      }
+    } else if(recurrence === "monthly"){
+      d.setMonth(d.getMonth() + 1);
+    }
+    return toLocalISOString(d);
   }
   
   function calculateCountdown(datetimeStr){
@@ -734,6 +778,51 @@
         if(item.category === c) opt.selected = true;
         catSel.appendChild(opt);
       });
+      const recurSel = document.createElement("select");
+      recurSel.className = "rem-input";
+      const recurOpts = [
+        { val: "none", text: "Sekali Saja" },
+        { val: "daily", text: "Tiap Hari" },
+        { val: "weekly", text: "Hari Tertentu" },
+        { val: "monthly", text: "Sebulan Sekali" }
+      ];
+      recurOpts.forEach(function(o){
+        const opt = document.createElement("option");
+        opt.value = o.val; opt.textContent = o.text;
+        if((item.recurrence || "none") === o.val) opt.selected = true;
+        recurSel.appendChild(opt);
+      });
+      const daysContainer = document.createElement("div");
+      daysContainer.className = "rem-days-picker";
+      daysContainer.style.display = item.recurrence === "weekly" ? "flex" : "none";
+      const daysMap = [
+        { label: "M", val: 0 },
+        { label: "S", val: 1 },
+        { label: "S", val: 2 },
+        { label: "R", val: 3 },
+        { label: "K", val: 4 },
+        { label: "J", val: 5 },
+        { label: "S", val: 6 }
+      ];
+      const activeDays = new Set(item.recurDays || []);
+      daysMap.forEach(function(d){
+        const circle = document.createElement("div");
+        circle.className = "day-circle" + (activeDays.has(d.val) ? " active" : "");
+        circle.textContent = d.label;
+        circle.addEventListener("click", function(){
+          if(activeDays.has(d.val)) {
+            activeDays.delete(d.val);
+            circle.classList.remove("active");
+          } else {
+            activeDays.add(d.val);
+            circle.classList.add("active");
+          }
+        });
+        daysContainer.appendChild(circle);
+      });
+      recurSel.addEventListener("change", function(){
+        daysContainer.style.display = recurSel.value === "weekly" ? "flex" : "none";
+      });
       const dateInput = document.createElement("input");
       dateInput.className = "rem-input";
       dateInput.type = "datetime-local";
@@ -760,6 +849,8 @@
         }
         item.text = tVal;
         item.category = catSel.value;
+        item.recurrence = recurSel.value;
+        item.recurDays = Array.from(activeDays);
         item.datetime = dateInput.value;
         item.done = false;
         clearTimeout(saveTimer);
@@ -774,6 +865,8 @@
       });
       row.appendChild(txtInput);
       row.appendChild(catSel);
+      row.appendChild(recurSel);
+      row.appendChild(daysContainer);
       row.appendChild(dateInput);
       btns.appendChild(cancelBtn);
       btns.appendChild(saveBtn);
@@ -786,7 +879,14 @@
     const chk = document.createElement("div");
     chk.className = "chk";
     chk.addEventListener("click", function(){
-      item.done = !item.done;
+      if(item.recurrence && item.recurrence !== "none") {
+        const nextDt = getNextOccurrence(item.datetime || toLocalISOString(new Date()), item.recurrence, item.recurDays || []);
+        item.datetime = nextDt;
+        item.done = false;
+        flashStatus("Pengingat berulang diperbarui ke tanggal berikutnya! 🔄");
+      } else {
+        item.done = !item.done;
+      }
       save();
       renderReminderList(card, body);
       redrawLinks();
@@ -808,6 +908,14 @@
     const cat = document.createElement("span");
     cat.className = "badge-cat " + (item.category || "Umum").toLowerCase();
     cat.textContent = item.category || "Umum";
+    let recurText = "";
+    if(item.recurrence === "daily") recurText = "🔁 Tiap Hari";
+    else if(item.recurrence === "weekly") {
+      const daysName = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+      const selectedNames = (item.recurDays || []).map(function(d){ return daysName[d]; });
+      recurText = "🔁 " + (selectedNames.length > 0 ? selectedNames.join(",") : "Hari Tertentu");
+    }
+    else if(item.recurrence === "monthly") recurText = "🔁 Bulanan";
     const cd = document.createElement("span");
     cd.className = "rem-countdown";
     if(item.done){
@@ -820,6 +928,14 @@
     }
     meta.appendChild(dot);
     meta.appendChild(cat);
+    if(recurText){
+      const rb = document.createElement("span");
+      rb.className = "badge-cat umum";
+      rb.style.background = "rgba(0,0,0,0.04)";
+      rb.style.textTransform = "none";
+      rb.textContent = recurText;
+      meta.appendChild(rb);
+    }
     meta.appendChild(cd);
     main.appendChild(txt);
     main.appendChild(meta);
@@ -872,7 +988,7 @@
     add.textContent = "+ Tambah Pengingat";
     add.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
     add.addEventListener("click", function(){
-      var ni = { id: uid(), text: "", category: "Umum", datetime: "", done: false };
+      var ni = { id: uid(), text: "", category: "Umum", recurrence: "none", recurDays: [], datetime: "", done: false };
       card.items.push(ni);
       var editRow = makeReminderItem(card, ni, body, true);
       body.insertBefore(editRow, add);
