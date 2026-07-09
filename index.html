@@ -85,6 +85,43 @@
   .del-item:hover{color:#ef4444}
   .add-item{margin-top:2px;border:none;background:none;color:#6b7280;font-size:12.5px;cursor:pointer;padding:6px 6px;text-align:left;border-radius:7px}
   .add-item:hover{background:rgba(0,0,0,.05);color:var(--ink)}
+  .card.reminder{background:#f1f5f9}
+  .reminder-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
+  .reminder-item{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:8px;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.04);transition:all .15s}
+  .reminder-item:hover{background:rgba(0,0,0,.055)}
+  .reminder-item.done{opacity:0.65}
+  .rem-row{display:flex;align-items:flex-start;gap:6px}
+  .rem-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .rem-text{font-size:13.5px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+  .reminder-item.done .rem-text{text-decoration:line-through;color:#71717a}
+  .rem-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px}
+  .badge-cat{font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+  .badge-cat.langganan{background:#f3e8ff;color:#6b21a8}
+  .badge-cat.jadwal{background:#dbeafe;color:#1e40af}
+  .badge-cat.umum{background:#e2e8f0;color:#475569}
+  .priority-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+  .priority-dot.tinggi{background:#ef4444;box-shadow:0 0 4px #ef4444}
+  .priority-dot.sedang{background:#f59e0b;box-shadow:0 0 4px #f59e0b}
+  .priority-dot.rendah{background:#10b981;box-shadow:0 0 4px #10b981}
+  .rem-countdown{font-size:11px;font-weight:600;color:#64748b}
+  .rem-countdown.approaching{color:#ef4444;animation:pulse-red 1.5s infinite}
+  .rem-countdown.overdue{color:#b91c1c;font-weight:bold}
+  .rem-countdown.done{color:#15803d}
+  @keyframes pulse-red {
+    0% { opacity: 1; }
+    50% { opacity: 0.55; }
+    100% { opacity: 1; }
+  }
+  .rem-editor{display:flex;flex-direction:column;gap:6px;background:rgba(0,0,0,.04);padding:8px;border-radius:8px;border:1px dashed rgba(0,0,0,.15)}
+  .rem-input{width:100%;padding:4px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;font-size:12.5px;background:#fff;color:var(--ink);outline:none}
+  .rem-input:focus{border-color:var(--accent)}
+  .rem-grid-inputs{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .rem-btn-row{display:flex;justify-content:flex-end;gap:4px;margin-top:2px}
+  .rem-btn{border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer}
+  .rem-btn.save{background:var(--accent);color:#12141a}
+  .rem-btn.save:hover{filter:brightness(1.08)}
+  .rem-btn.cancel{background:rgba(0,0,0,.08);color:var(--ink)}
+  .rem-btn.cancel:hover{background:rgba(0,0,0,.15)}
 
   #linkActions{
     position:fixed;display:none;align-items:center;gap:4px;z-index:1500;
@@ -215,6 +252,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       To-do
     </button>
+    <button class="tbtn" id="addReminder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Reminder
+    </button>
     <div class="tsep"></div>
     <button class="tbtn ghost" id="exportBtn">Export</button>
     <button class="tbtn ghost" id="importBtn">Import</button>
@@ -303,6 +344,36 @@
     } else {
       document.execCommand(command, false, null);
     }
+  }
+  
+  function calculateCountdown(datetimeStr){
+    if(!datetimeStr) return { text: "Belum diset", class: "" };
+    const target = new Date(datetimeStr).getTime();
+    const now = new Date().getTime();
+    const diff = target - now;
+    if(diff <= 0) return { text: "Telah Lewat!", class: "overdue" };
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    let text = "";
+    if(d > 0) text = `${d}h ${h}j lagi`;
+    else if(h > 0) text = `${h}j ${m}m lagi`;
+    else text = `${m}m lagi`;
+    const classVal = diff < (24 * 60 * 60 * 1000) ? "approaching" : "";
+    return { text, class: classVal };
+  }
+
+  function tickCountdowns(){
+    document.querySelectorAll(".reminder-item").forEach(itemEl=>{
+      if(itemEl.classList.contains("done")) return;
+      const valEl = itemEl.querySelector(".rem-countdown");
+      if(!valEl) return;
+      const dt = valEl.dataset.datetime;
+      if(!dt) return;
+      const res = calculateCountdown(dt);
+      valEl.textContent = res.text;
+      valEl.className = "rem-countdown " + res.class;
+    });
   }
 
   function enableResize(el,card){
@@ -550,9 +621,9 @@
       el.style.background=card.color||COLORS[0];
     }
     const head=document.createElement("div"); head.className="card-head";
-    if(card.type==="todo"){
+    if(card.type==="todo" || card.type==="reminder"){
       const title=document.createElement("div"); title.className="card-title";
-      title.contentEditable="true"; title.spellcheck=false; title.textContent=card.title||"";
+      title.contentEditable="true"; title.spellcheck=false; title.textContent=card.title||(card.type==="todo"?"To-do":"Pengingat");
       title.addEventListener("input",()=>{ card.title=title.textContent; save(); redrawLinks(); });
       head.appendChild(title);
     }else{
@@ -585,7 +656,7 @@
       body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
       body.addEventListener("pointerdown",e=>e.stopPropagation());
       el.appendChild(body);
-    }else{
+    }else if(card.type==="todo"){
       const body=document.createElement("div"); body.className="todo-body";
       card.items=card.items||[];
       card.items.forEach(it=>body.appendChild(makeTodoItem(card,it,body)));
@@ -597,6 +668,10 @@
         node.querySelector(".todo-text").focus(); save(); redrawLinks();
       });
       body.appendChild(add); el.appendChild(body);
+    }else if(card.type==="reminder"){
+      const body=document.createElement("div"); body.className="reminder-body";
+      el.appendChild(body);
+      renderReminderList(card,body);
     }
     const directions=["t","r","b","l","tl","tr","bl","br"];
     directions.forEach(d=>{
@@ -630,6 +705,176 @@
     del.addEventListener("click",()=>{ card.items=card.items.filter(x=>x.id!==item.id); row.remove(); save(); redrawLinks(); });
     row.appendChild(chk); row.appendChild(txt); row.appendChild(del);
     return row;
+  }
+
+  function makeReminderItem(card, item, body, isEditing = false){
+    const row = document.createElement("div");
+    row.className = "reminder-item" + (item.done ? " done" : "");
+    row.dataset.id = item.id;
+    if(isEditing){
+      row.className = "rem-editor";
+      row.addEventListener("pointerdown", e=>e.stopPropagation());
+      const txtInput = document.createElement("input");
+      txtInput.className = "rem-input";
+      txtInput.type = "text";
+      txtInput.placeholder = "Nama pengingat/tagihan…";
+      txtInput.value = item.text || "";
+      const grid = document.createElement("div");
+      grid.className = "rem-grid-inputs";
+      const catSel = document.createElement("select");
+      catSel.className = "rem-input";
+      ["Langganan", "Jadwal", "Umum"].forEach(c=>{
+        const opt = document.createElement("option");
+        opt.value = c; opt.textContent = c;
+        if(item.category === c) opt.selected = true;
+        catSel.appendChild(opt);
+      });
+      const priSel = document.createElement("select");
+      priSel.className = "rem-input";
+      ["Tinggi", "Sedang", "Rendah"].forEach(p=>{
+        const opt = document.createElement("option");
+        opt.value = p; opt.textContent = p;
+        if(item.priority === p) opt.selected = true;
+        priSel.appendChild(opt);
+      });
+      grid.appendChild(catSel);
+      grid.appendChild(priSel);
+      const dateInput = document.createElement("input");
+      dateInput.className = "rem-input";
+      dateInput.type = "datetime-local";
+      dateInput.value = item.datetime || "";
+      const btns = document.createElement("div");
+      btns.className = "rem-btn-row";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "rem-btn cancel";
+      cancelBtn.textContent = "Batal";
+      cancelBtn.addEventListener("click", ()=>{
+        if(!item.text && !item.datetime){
+          card.items = card.items.filter(i=>i.id !== item.id);
+        }
+        renderReminderList(card, body);
+      });
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "rem-btn save";
+      saveBtn.textContent = "Simpan";
+      saveBtn.addEventListener("click", ()=>{
+        if(!txtInput.value.trim()){
+          alert("Nama pengingat tidak boleh kosong.");
+          return;
+        }
+        item.text = sanitizeHTML(txtInput.value.trim());
+        item.category = catSel.value;
+        item.priority = priSel.value;
+        item.datetime = dateInput.value;
+        save();
+        renderReminderList(card, body);
+        redrawLinks();
+      });
+      row.appendChild(txtInput);
+      row.appendChild(grid);
+      row.appendChild(dateInput);
+      btns.appendChild(cancelBtn);
+      btns.appendChild(saveBtn);
+      row.appendChild(btns);
+      return row;
+    }
+    row.addEventListener("pointerdown", e=>e.stopPropagation());
+    const remRow = document.createElement("div");
+    remRow.className = "rem-row";
+    const chk = document.createElement("div");
+    chk.className = "chk";
+    chk.addEventListener("click", ()=>{
+      item.done = !item.done;
+      row.classList.toggle("done", item.done);
+      save();
+      renderReminderList(card, body);
+      redrawLinks();
+    });
+    const main = document.createElement("div");
+    main.className = "rem-main";
+    const txt = document.createElement("div");
+    txt.className = "rem-text";
+    txt.textContent = item.text || "";
+    const meta = document.createElement("div");
+    meta.className = "rem-meta";
+    const dot = document.createElement("span");
+    dot.className = "priority-dot " + (item.priority || "Rendah").toLowerCase();
+    const cat = document.createElement("span");
+    cat.className = "badge-cat " + (item.category || "Umum").toLowerCase();
+    cat.textContent = item.category || "Umum";
+    const cd = document.createElement("span");
+    cd.className = "rem-countdown";
+    if(item.done){
+      cd.textContent = "Selesai";
+      cd.classList.add("done");
+    } else {
+      cd.dataset.datetime = item.datetime || "";
+      const res = calculateCountdown(item.datetime);
+      cd.textContent = res.text;
+      cd.classList.add(res.class);
+    }
+    meta.appendChild(dot);
+    meta.appendChild(cat);
+    meta.appendChild(cd);
+    main.appendChild(txt);
+    main.appendChild(meta);
+    const btnsDiv = document.createElement("div");
+    btnsDiv.className = "head-btns";
+    const editBtn = document.createElement("button");
+    editBtn.className = "del-item";
+    editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+    editBtn.title = "Edit pengingat";
+    editBtn.addEventListener("click", ()=>{
+      const editRow = makeReminderItem(card, item, body, true);
+      row.parentNode.replaceChild(editRow, row);
+    });
+    const delBtn = document.createElement("button");
+    delBtn.className = "del-item";
+    delBtn.innerHTML = "&times;";
+    delBtn.title = "Hapus pengingat";
+    delBtn.addEventListener("click", ()=>{
+      card.items = card.items.filter(i=>i.id !== item.id);
+      row.remove();
+      save();
+      redrawLinks();
+    });
+    btnsDiv.appendChild(editBtn);
+    btnsDiv.appendChild(delBtn);
+    remRow.appendChild(chk);
+    remRow.appendChild(main);
+    remRow.appendChild(btnsDiv);
+    row.appendChild(remRow);
+    return row;
+  }
+
+  function renderReminderList(card, body){
+    body.innerHTML = "";
+    card.items = card.items || [];
+    const priValue = { "Tinggi": 3, "Sedang": 2, "Rendah": 1 };
+    const sorted = [...card.items].sort((a, b)=>{
+      if(a.done !== b.done) return a.done ? 1 : -1;
+      const priA = priValue[a.priority] || 1;
+      const priB = priValue[b.priority] || 1;
+      if(priA !== priB) return priB - priA;
+      const tA = a.datetime ? new Date(a.datetime).getTime() : Infinity;
+      const tB = b.datetime ? new Date(b.datetime).getTime() : Infinity;
+      return tA - tB;
+    });
+    sorted.forEach(it=>{
+      body.appendChild(makeReminderItem(card, it, body));
+    });
+    const add = document.createElement("button");
+    add.className = "add-item";
+    add.textContent = "+ Tambah Pengingat";
+    add.addEventListener("pointerdown", e=>e.stopPropagation());
+    add.addEventListener("click", ()=>{
+      const ni = { id: uid(), text: "", category: "Umum", priority: "Rendah", datetime: "", done: false };
+      card.items.push(ni);
+      const editRow = makeReminderItem(card, ni, body, true);
+      body.appendChild(editRow);
+      editRow.querySelector(".rem-input").focus();
+    });
+    body.appendChild(add);
   }
 
   /* ---------- Drag kartu ---------- */
@@ -719,6 +964,13 @@
     const card={id:uid(),type:"todo",x:Math.round(c.x-110),y:Math.round(c.y-70),title:"To-do",items:[{id:uid(),text:"",done:false}]};
     state.cards.push(card); const el=makeCard(card); el.querySelector(".todo-text").focus(); save(); redrawLinks();
   }
+  function addReminder(){
+    const c=screenToWorld(board.clientWidth/2,board.clientHeight/2);
+    const card={id:uid(),type:"reminder",x:Math.round(c.x-130),y:Math.round(c.y-100),w:320,h:400,title:"Pengingat",items:[]};
+    state.cards.push(card); const el=makeCard(card); save(); redrawLinks();
+    const addBtn = el.querySelector(".add-item");
+    if(addBtn) addBtn.click();
+  }
   function flashStatus(msg,isAmber){
     const oldText=statusTxt.textContent;
     const oldMem=statusEl.classList.contains("mem");
@@ -753,6 +1005,7 @@
 
   document.getElementById("addNote").addEventListener("click",()=>addNote());
   document.getElementById("addTodo").addEventListener("click",addTodo);
+  document.getElementById("addReminder").addEventListener("click",addReminder);
   document.getElementById("exportBtn").addEventListener("click",()=>{
     const jsonStr=JSON.stringify(state,null,2);
     copyToClipboard(jsonStr);
@@ -857,6 +1110,7 @@
   });
 
   renderAll(); save();
+  setInterval(tickCountdowns, 30000);
 })();
 </script>
 </body>
