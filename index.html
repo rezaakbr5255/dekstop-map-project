@@ -141,6 +141,90 @@
   }
   .rem-action-btn:hover{background:rgba(0,0,0,0.06);color:var(--ink)}
   .rem-action-btn.del:hover{background:#fee2e2;color:#ef4444}
+  .custom-datetime-picker {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    color: var(--ink);
+    margin-top: 4px;
+  }
+  .cal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 12px;
+  }
+  .cal-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--ink);
+  }
+  .cal-btn:hover { background: #f1f5f9; }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    text-align: center;
+    font-size: 11px;
+  }
+  .cal-day-label { font-weight: bold; color: #64748b; padding: 2px 0; }
+  .cal-cell {
+    padding: 4px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.1s;
+  }
+  .cal-cell:hover { background: #e2e8f0; }
+  .cal-cell.selected { background: var(--accent); color: #12141a; font-weight: bold; }
+  .cal-cell.empty { cursor: default; }
+  .cal-cell.empty:hover { background: none; }
+  .cal-time-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+    justify-content: space-between;
+  }
+  .cal-time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .cal-time-val {
+    width: 32px;
+    text-align: center;
+    padding: 2px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  .cal-time-val:focus { border-color: var(--accent); }
+  .cal-apply-btn {
+    background: var(--accent);
+    color: #12141a;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .cal-apply-btn:hover { filter: brightness(1.08); }
 
   #linkActions{
     position:fixed;display:none;align-items:center;gap:4px;z-index:1500;
@@ -400,6 +484,129 @@
       d.setMonth(d.getMonth() + 1);
     }
     return toLocalISOString(d);
+  }
+
+  function createCustomDateTimePicker(initialValue, onApply) {
+    const container = document.createElement("div");
+    container.className = "custom-datetime-picker";
+    container.addEventListener("pointerdown", e => e.stopPropagation());
+    container.addEventListener("mousedown", e => e.stopPropagation());
+    let currentVal = initialValue ? new Date(initialValue) : new Date();
+    if (isNaN(currentVal.getTime())) currentVal = new Date();
+    let viewYear = currentVal.getFullYear();
+    let viewMonth = currentVal.getMonth();
+    let selectedDay = currentVal.getDate();
+    let hour = currentVal.getHours();
+    let minute = currentVal.getMinutes();
+    const header = document.createElement("div");
+    header.className = "cal-header";
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "cal-btn";
+    prevBtn.type = "button";
+    prevBtn.textContent = "<";
+    prevBtn.addEventListener("click", () => {
+      viewMonth--;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      renderGrid();
+    });
+    const titleSpan = document.createElement("span");
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "cal-btn";
+    nextBtn.type = "button";
+    nextBtn.textContent = ">";
+    nextBtn.addEventListener("click", () => {
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderGrid();
+    });
+    header.appendChild(prevBtn);
+    header.appendChild(titleSpan);
+    header.appendChild(nextBtn);
+    const grid = document.createElement("div");
+    grid.className = "cal-grid";
+    const months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    function renderGrid() {
+      grid.innerHTML = "";
+      titleSpan.textContent = months[viewMonth] + " " + viewYear;
+      const daysName = ["M", "S", "S", "R", "K", "J", "S"];
+      daysName.forEach(name => {
+        const label = document.createElement("div");
+        label.className = "cal-day-label";
+        label.textContent = name;
+        grid.appendChild(label);
+      });
+      const firstDayIndex = new Date(viewYear, viewMonth, 1).getDay();
+      const totalDays = new Date(viewYear, viewMonth + 1, 0).getDate();
+      for (let i = 0; i < firstDayIndex; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cal-cell empty";
+        grid.appendChild(cell);
+      }
+      for (let d = 1; d <= totalDays; d++) {
+        const cell = document.createElement("div");
+        cell.className = "cal-cell";
+        cell.textContent = d;
+        if (viewYear === currentVal.getFullYear() && viewMonth === currentVal.getMonth() && d === selectedDay) {
+          cell.classList.add("selected");
+        }
+        cell.addEventListener("click", () => {
+          selectedDay = d;
+          container.querySelectorAll(".cal-cell.selected").forEach(c => c.classList.remove("selected"));
+          cell.classList.add("selected");
+        });
+        grid.appendChild(cell);
+      }
+    }
+    renderGrid();
+    const timeRow = document.createElement("div");
+    timeRow.className = "cal-time-row";
+    const timeLabel = document.createElement("span");
+    timeLabel.textContent = "Waktu (HH:MM):";
+    const inputsDiv = document.createElement("div");
+    inputsDiv.className = "cal-time-inputs";
+    const hhInput = document.createElement("input");
+    hhInput.className = "cal-time-val";
+    hhInput.type = "text";
+    hhInput.maxLength = 2;
+    hhInput.value = String(hour).padStart(2, "0");
+    const separator = document.createElement("span");
+    separator.textContent = ":";
+    const mmInput = document.createElement("input");
+    mmInput.className = "cal-time-val";
+    mmInput.type = "text";
+    mmInput.maxLength = 2;
+    mmInput.value = String(minute).padStart(2, "0");
+    [hhInput, mmInput].forEach(inp => {
+      inp.addEventListener("pointerdown", e => { e.stopPropagation(); inp.focus(); });
+      inp.addEventListener("mousedown", e => { e.stopPropagation(); inp.focus(); });
+      inp.addEventListener("click", e => { e.stopPropagation(); inp.focus(); });
+    });
+    inputsDiv.appendChild(hhInput);
+    inputsDiv.appendChild(separator);
+    inputsDiv.appendChild(mmInput);
+    const applyBtn = document.createElement("button");
+    applyBtn.className = "cal-apply-btn";
+    applyBtn.type = "button";
+    applyBtn.textContent = "Terapkan";
+    applyBtn.addEventListener("click", () => {
+      let hVal = parseInt(hhInput.value, 10) || 0;
+      let mVal = parseInt(mmInput.value, 10) || 0;
+      hVal = Math.min(23, Math.max(0, hVal));
+      mVal = Math.min(59, Math.max(0, mVal));
+      const ten = (i) => (i < 10 ? '0' : '') + i;
+      const resStr = `${viewYear}-${ten(viewMonth + 1)}-${ten(selectedDay)}T${ten(hVal)}:${ten(mVal)}`;
+      onApply(resStr);
+    });
+    timeRow.appendChild(timeLabel);
+    timeRow.appendChild(inputsDiv);
+    timeRow.appendChild(applyBtn);
+    container.appendChild(header);
+    container.appendChild(grid);
+    container.appendChild(timeRow);
+    return container;
   }
   
   function calculateCountdown(datetimeStr){
@@ -851,13 +1058,47 @@
       recurSel.addEventListener("change", function(){
         daysContainer.style.display = recurSel.value === "weekly" ? "flex" : "none";
       });
-      const dateInput = document.createElement("input");
-      dateInput.className = "rem-input";
-      dateInput.type = "datetime-local";
-      dateInput.value = item.datetime || "";
-      dateInput.addEventListener("pointerdown", e => { e.stopPropagation(); dateInput.focus(); });
-      dateInput.addEventListener("mousedown", e => { e.stopPropagation(); dateInput.focus(); });
-      dateInput.addEventListener("click", e => { e.stopPropagation(); dateInput.focus(); });
+      const dateDisplay = document.createElement("div");
+      dateDisplay.className = "rem-input";
+      dateDisplay.style.cursor = "pointer";
+      dateDisplay.style.background = "#fff";
+      dateDisplay.style.border = "1px solid rgba(0,0,0,0.15)";
+      dateDisplay.style.borderRadius = "5px";
+      dateDisplay.style.padding = "4px 6px";
+      dateDisplay.style.fontSize = "12.5px";
+      dateDisplay.style.minHeight = "24px";
+      dateDisplay.style.display = "flex";
+      dateDisplay.style.alignItems = "center";
+      dateDisplay.style.justifyContent = "space-between";
+      
+      let tempDatetime = item.datetime || "";
+      function updateDisplay() {
+        if (tempDatetime) {
+          const parts = tempDatetime.split("T");
+          dateDisplay.textContent = parts[0] + " " + parts[1];
+        } else {
+          dateDisplay.textContent = "Pilih Tanggal & Waktu…";
+        }
+      }
+      updateDisplay();
+      let pickerEl = null;
+      function togglePicker() {
+        if (pickerEl) {
+          pickerEl.remove();
+          pickerEl = null;
+        } else {
+          pickerEl = createCustomDateTimePicker(tempDatetime, function(newVal) {
+            tempDatetime = newVal;
+            updateDisplay();
+            pickerEl.remove();
+            pickerEl = null;
+          });
+          row.insertBefore(pickerEl, btns);
+        }
+      }
+      dateDisplay.addEventListener("pointerdown", e => { e.stopPropagation(); togglePicker(); });
+      dateDisplay.addEventListener("mousedown", e => { e.stopPropagation(); togglePicker(); });
+      dateDisplay.addEventListener("click", e => { e.stopPropagation(); togglePicker(); });
       const btns = document.createElement("div");
       btns.className = "rem-btn-row";
       const cancelBtn = document.createElement("button");
@@ -882,7 +1123,7 @@
         item.category = catSel.value;
         item.recurrence = recurSel.value;
         item.recurDays = Array.from(activeDays);
-        item.datetime = dateInput.value;
+        item.datetime = tempDatetime;
         item.done = false;
         clearTimeout(saveTimer);
         try{
@@ -898,7 +1139,7 @@
       row.appendChild(catSel);
       row.appendChild(recurSel);
       row.appendChild(daysContainer);
-      row.appendChild(dateInput);
+      row.appendChild(dateDisplay);
       btns.appendChild(cancelBtn);
       btns.appendChild(saveBtn);
       row.appendChild(btns);
