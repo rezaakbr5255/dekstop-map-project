@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Papan Proyek</title>
+<style>
+  :root{
+    --board:#0f1116; --dot:rgba(255,255,255,.055);
+    --panel:#1a1d24; --panel-2:#22262f; --line:rgba(255,255,255,.09);
+    --txt:#e6e8ee; --muted:#8b90a0; --accent:#8b9cff; --ink:#2a2a35;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--board);color:var(--txt);
+    font-family:"Segoe UI",ui-sans-serif,system-ui,-apple-system,Roboto,Arial,sans-serif;
+    overflow:hidden;-webkit-user-select:none;user-select:none;
+  }
+  #board{
+    position:fixed;inset:0;background-color:var(--board);
+    background-image:radial-gradient(var(--dot) 1.4px, transparent 1.4px);
+    background-size:26px 26px;background-position:0 0;cursor:grab;touch-action:none;
+  }
+  #board.panning{cursor:grabbing}
+  #linksSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .link-visible{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:2 7;stroke-linecap:round;pointer-events:none}
+  .link-hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
+  #world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+
+  .card{
+    position:absolute;width:220px;min-height:120px;border-radius:12px;color:var(--ink);
+    box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;flex-direction:column;
+    transition:box-shadow .15s ease, transform .12s ease;
+  }
+  .card.todo{background:#f8fafc}
+  .card.dragging{box-shadow:0 22px 44px rgba(0,0,0,.5);transform:rotate(0deg) scale(1.02);z-index:999}
+  .card-head{
+    height:26px;flex:none;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:6px;
+    padding:0 8px;cursor:grab;background:rgba(0,0,0,.06);
+  }
+  .card.dragging .card-head{cursor:grabbing}
+  .card-title{
+    font-size:12.5px;font-weight:600;color:var(--ink);flex:1;min-width:0;outline:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .card-title:focus{overflow:visible;text-overflow:clip}
+  .head-btns{display:flex;gap:4px;opacity:0;transition:opacity .12s}
+  .card:hover .head-btns,.card:focus-within .head-btns{opacity:1}
+  .hbtn{
+    width:18px;height:18px;border:none;border-radius:5px;background:rgba(0,0,0,.12);color:var(--ink);
+    cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .hbtn:hover{background:rgba(0,0,0,.24)}
+  .hbtn.link{cursor:crosshair}
+  .hbtn svg{width:12px;height:12px}
+
+  .note-body{
+    flex:1;padding:12px 14px 16px;font-size:14.5px;line-height:1.45;color:var(--ink);
+    outline:none;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text;cursor:text;
+    overflow-y:auto;border-radius:0 0 12px 12px;
+  }
+  .note-body:empty::before{content:attr(data-ph);color:rgba(0,0,0,.35)}
+
+  .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
+  .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
+  .todo-item:hover{background:rgba(0,0,0,.04)}
+  .chk{
+    width:17px;height:17px;flex:none;margin-top:1px;border:1.8px solid #9aa2b1;border-radius:5px;
+    cursor:pointer;background:#fff;position:relative;
+  }
+  .todo-item.done .chk{background:var(--accent);border-color:var(--accent)}
+  .todo-item.done .chk::after{
+    content:"";position:absolute;left:5px;top:1.5px;width:4px;height:8px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);
+  }
+  .todo-text{
+    flex:1;font-size:13.5px;line-height:1.4;color:var(--ink);outline:none;overflow-wrap:anywhere;
+    -webkit-user-select:text;user-select:text;cursor:text;
+  }
+  .todo-item.done .todo-text{text-decoration:line-through;color:#9aa2b1}
+  .todo-text:empty::before{content:"Tugas baru…";color:rgba(0,0,0,.3)}
+  .del-item{border:none;background:none;color:#b6bcc9;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;opacity:0;flex:none}
+  .todo-item:hover .del-item{opacity:1}
+  .del-item:hover{color:#ef4444}
+  .add-item{margin-top:2px;border:none;background:none;color:#6b7280;font-size:12.5px;cursor:pointer;padding:6px 6px;text-align:left;border-radius:7px}
+  .add-item:hover{background:rgba(0,0,0,.05);color:var(--ink)}
+
+  #linkActions{
+    position:fixed;display:none;align-items:center;gap:4px;z-index:1500;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;
+    box-shadow:0 4px 12px rgba(0,0,0,.4);transform:translate(-50%, -50%);
+  }
+  .abtn{
+    width:24px;height:24px;border:none;border-radius:5px;background:var(--panel-2);color:var(--txt);
+    cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .abtn:hover{background:#2c313c;color:#fff}
+  .abtn.del{background:#ef4444;color:#fff}
+  .abtn.del:hover{background:#dc2626}
+  .abtn svg{width:14px;height:14px}
+
+  #toolbar{
+    position:fixed;left:50%;bottom:76px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:7px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);z-index:1000;
+  }
+  .tbtn{
+    display:flex;align-items:center;gap:7px;height:38px;padding:0 13px;border:none;border-radius:9px;
+    background:var(--panel-2);color:var(--txt);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;
+  }
+  .tbtn:hover{background:#2c313c}
+  .tbtn svg{width:16px;height:16px;flex:none}
+  .tbtn.primary{background:var(--accent);color:#12141a;font-weight:600}
+  .tbtn.primary:hover{filter:brightness(1.08)}
+  .tsep{width:1px;height:24px;background:var(--line);margin:0 3px}
+  .tbtn.ghost{background:transparent;color:var(--muted);padding:0 11px}
+  .tbtn.ghost:hover{background:var(--panel-2);color:var(--txt)}
+
+  #status{
+    position:fixed;left:16px;bottom:74px;z-index:1000;font-size:11.5px;color:var(--muted);
+    display:flex;align-items:center;gap:6px;background:rgba(26,29,36,.7);padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+  }
+  #status .dot{width:7px;height:7px;border-radius:50%;background:#4ade80}
+  #status.mem .dot{background:#f59e0b}
+  #board.locked{cursor:default}
+  .tbtn.active{background:var(--accent);color:#12141a}
+  .tbtn.active:hover{filter:brightness(1.08)}
+  .card.dragging * {user-select:none !important}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){.card,.card.dragging{transition:none}}
+
+  .resizer{
+    position:absolute;z-index:100;transition:background-color 0.12s;
+  }
+  .resizer:hover{
+    background-color:rgba(139,156,255,0.45);
+  }
+  .resizer.active{
+    background-color:rgba(139,156,255,0.6) !important;
+  }
+  /* Edges */
+  .resizer.t{
+    top:-5px;left:0;width:100%;height:9px;cursor:ns-resize;
+  }
+  .resizer.r{
+    top:0;right:-5px;width:9px;height:100%;cursor:ew-resize;
+  }
+  .resizer.b{
+    left:0;bottom:-5px;width:100%;height:9px;cursor:ns-resize;
+  }
+  .resizer.l{
+    top:0;left:-5px;width:9px;height:100%;cursor:ew-resize;
+  }
+  /* Corners */
+  .resizer.tl{
+    top:-7px;left:-7px;width:16px;height:16px;cursor:nwse-resize;border-radius:50%;
+  }
+  .resizer.tr{
+    top:-7px;right:-7px;width:16px;height:16px;cursor:nesw-resize;border-radius:50%;
+  }
+  .resizer.bl{
+    bottom:-7px;left:-7px;width:16px;height:16px;cursor:nesw-resize;border-radius:50%;
+  }
+  .resizer.br{
+    bottom:-7px;right:-7px;width:16px;height:16px;cursor:nwse-resize;border-radius:50%;
+  }
+
+  #textToolbar{
+    position:fixed;left:50%;bottom:128px;transform:translateX(-50%);
+    display:none;align-items:center;gap:4px;z-index:1500;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;
+    box-shadow:0 6px 20px rgba(0,0,0,.45);
+  }
+</style>
+</head>
+<body>
+  <div id="board">
+    <svg id="linksSvg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#8b9cff"/>
+        </marker>
+      </defs>
+      <g id="linkLayer"></g>
+    </svg>
+    <div id="world"></div>
+  </div>
+
+  <div id="linkActions">
+    <button id="linkStyle" class="abtn" title="Ubah gaya koneksi"></button>
+    <button id="linkDel" class="abtn del" title="Hapus koneksi">&times;</button>
+  </div>
+
+  <div id="textToolbar">
+    <button class="abtn" id="btnBold" title="Tebal (Bold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg></button>
+    <button class="abtn" id="btnItalic" title="Miring (Italic)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg></button>
+    <button class="abtn" id="btnUnderline" title="Garis Bawah (Underline)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 3v7a6 6 0 0 0 12 0V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg></button>
+    <button class="abtn" id="btnStrike" title="Coret (Strikethrough)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><path d="M16 4h-3a5 5 0 0 0-5 5c0 2 2 3 4 3s4 1 4 3a5 5 0 0 1-5 5h-3"/></svg></button>
+    <div class="tsep" style="height:16px;"></div>
+    <button class="abtn" id="btnUpper" title="Huruf Besar (UPPERCASE)" style="font-weight:bold; font-size:11px;">AG</button>
+    <button class="abtn" id="btnLower" title="Huruf Kecil (lowercase)" style="font-size:11px;">ag</button>
+  </div>
+
+  <div id="toolbar">
+    <button class="tbtn primary" id="addNote">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Catatan
+    </button>
+    <button class="tbtn" id="addTodo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      To-do
+    </button>
+    <div class="tsep"></div>
+    <button class="tbtn ghost" id="exportBtn">Export</button>
+    <button class="tbtn ghost" id="importBtn">Import</button>
+    <button class="tbtn ghost" id="resetBtn">Reset</button>
+    <div class="tsep"></div>
+    <button class="tbtn ghost" id="zoomOut" title="Perkecil (Zoom Out)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
+    </button>
+    <button class="tbtn ghost" id="zoomIn" title="Perbesar (Zoom In)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tbtn ghost" id="lockBtn" title="Kunci pergeseran layar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
+    <input type="file" id="fileInput" accept="application/json" style="display:none" />
+  </div>
+
+  <div id="status"><span class="dot"></span><span id="statusTxt">Tersimpan otomatis</span></div>
+
+<script>
+(function(){
+  "use strict";
+  const KEY="papan-proyek-v1";
+  const SVGNS="http://www.w3.org/2000/svg";
+  const COLORS=["#fde68a","#bbf7d0","#bae6fd","#fbcfe8","#ddd6fe","#fed7aa","#a7f3d0","#fecaca"];
+
+  const board=document.getElementById("board");
+  const world=document.getElementById("world");
+  const linkLayer=document.getElementById("linkLayer");
+  const linksSvg=document.getElementById("linksSvg");
+  const linkDel=document.getElementById("linkDel");
+  const linkActions=document.getElementById("linkActions");
+  const linkStyle=document.getElementById("linkStyle");
+  const statusEl=document.getElementById("status");
+  const statusTxt=document.getElementById("statusTxt");
+
+  let state=load()||seed();
+  if(!state.links) state.links=[];
+  state.locked=true; // Selalu kunci pergeseran layar saat pertama kali dimuat (boot/startup)
+  let selectedLink=null;
+  const els=new Map();
+
+  function sanitizeHTML(html){
+    if(!html) return "";
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const allowedTags = ['B', 'I', 'U', 'STRIKE', 'SPAN', 'STRONG', 'EM', 'BR', 'DIV', 'P'];
+    function clean(node) {
+      const children = Array.from(node.childNodes);
+      for (let child of children) {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          if (!allowedTags.includes(child.nodeName)) {
+            const parent = child.parentNode;
+            while (child.firstChild) parent.insertBefore(child.firstChild, child);
+            parent.removeChild(child);
+          } else {
+            while (child.attributes.length > 0) {
+              child.removeAttribute(child.attributes[0].name);
+            }
+            clean(child);
+          }
+        }
+      }
+    }
+    clean(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  function formatText(command) {
+    if (command === "uppercase" || command === "lowercase") {
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      const text = range.toString();
+      if (!text) return;
+      const transformed = command === "uppercase" ? text.toUpperCase() : text.toLowerCase();
+      range.deleteContents();
+      range.insertNode(document.createTextNode(transformed));
+      const active = document.activeElement;
+      if (active && active.contentEditable === "true") {
+        active.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    } else {
+      document.execCommand(command, false, null);
+    }
+  }
+
+  function enableResize(el,card){
+    el.querySelectorAll(".resizer").forEach(resizer=>{
+      resizer.addEventListener("pointerdown",(e)=>{
+        if(e.button!==0) return;
+        e.preventDefault(); e.stopPropagation();
+        const type=resizer.dataset.type;
+        const startWidth=el.offsetWidth;
+        const startHeight=el.offsetHeight;
+        const startX=e.clientX;
+        const startY=e.clientY;
+        const startXPos=card.x;
+        const startYPos=card.y;
+        el.classList.add("resizing");
+        resizer.classList.add("active");
+        function move(ev){
+          const dx=(ev.clientX-startX)/state.zoom;
+          const dy=(ev.clientY-startY)/state.zoom;
+          if(type==="r"||type==="tr"||type==="br"){
+            const nw=Math.max(160,Math.round(startWidth+dx));
+            card.w=nw; el.style.width=nw+"px";
+          }else if(type==="l"||type==="tl"||type==="bl"){
+            const nw=Math.max(160,Math.round(startWidth-dx));
+            if(nw>160){
+              card.x=Math.round(startXPos+(startWidth-nw));
+              el.style.left=card.x+"px";
+              card.w=nw; el.style.width=nw+"px";
+            }
+          }
+          if(type==="b"||type==="bl"||type==="br"){
+            const nh=Math.max(80,Math.round(startHeight+dy));
+            card.h=nh; el.style.height=nh+"px";
+          }else if(type==="t"||type==="tl"||type==="tr"){
+            const nh=Math.max(80,Math.round(startHeight-dy));
+            if(nh>80){
+              card.y=Math.round(startYPos+(startHeight-nh));
+              el.style.top=card.y+"px";
+              card.h=nh; el.style.height=nh+"px";
+            }
+          }
+          redrawLinks();
+        }
+        function up(){
+          el.classList.remove("resizing");
+          resizer.classList.remove("active");
+          document.removeEventListener("pointermove",move);
+          document.removeEventListener("pointerup",up);
+          document.removeEventListener("pointercancel",up);
+          save();
+        }
+        document.addEventListener("pointermove",move);
+        document.addEventListener("pointerup",up);
+        document.addEventListener("pointercancel",up);
+      });
+    });
+  }
+
+  /* ---------- Persistensi ---------- */
+  function load(){ try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null;}catch(e){return null;} }
+  let saveTimer=null;
+  function save(){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{
+      try{
+        localStorage.setItem(KEY,JSON.stringify(state));
+        statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
+      }catch(e){
+        statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
+      }
+    },350);
+  }
+  function uid(){ return "c"+Math.random().toString(36).slice(2,9); }
+  function seed(){
+    const n1=uid(), t1=uid(), n2=uid();
+    return {
+      pan:{x:120,y:90}, zoom:1,
+      cards:[
+        {id:n1,type:"note",x:80,y:60,color:"#fde68a",text:"Selamat datang 👋\n\nSeret ikon ◦—◦ di bar kartu ke kartu lain untuk membuat garis penghubung."},
+        {id:t1,type:"todo",x:360,y:70,title:"To-do hari ini",items:[
+          {id:uid(),text:"Klik kotak untuk mencentang",done:true},
+          {id:uid(),text:"Enter untuk tugas baru",done:false},
+          {id:uid(),text:"Export rutin biar aman",done:false}]},
+        {id:n2,type:"note",x:120,y:290,color:"#bae6fd",text:"Klik garis penghubung untuk memunculkan tombol hapus."}
+      ],
+      links:[{id:uid(),from:n1,to:t1}]
+    };
+  }
+
+  /* ---------- Transform dunia ---------- */
+  function applyWorld(){
+    world.style.transform=`translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
+    board.style.backgroundPosition=`${state.pan.x}px ${state.pan.y}px`;
+    board.style.backgroundSize=`${26*state.zoom}px ${26*state.zoom}px`;
+    redrawLinks();
+  }
+  function screenToWorld(cx,cy){ return {x:(cx-state.pan.x)/state.zoom, y:(cy-state.pan.y)/state.zoom}; }
+
+  /* ---------- Connector ---------- */
+  function screenRect(card){
+    const el=els.get(card.id);
+    const w=el?el.offsetWidth:220, h=el?el.offsetHeight:120;
+    return {x:card.x*state.zoom+state.pan.x, y:card.y*state.zoom+state.pan.y, w:w*state.zoom, h:h*state.zoom};
+  }
+  function edgePoint(r,tx,ty){
+    const cx=r.x+r.w/2, cy=r.y+r.h/2, dx=tx-cx, dy=ty-cy;
+    if(dx===0&&dy===0) return {x:cx,y:cy};
+    const s=1/Math.max(Math.abs(dx)/(r.w/2),Math.abs(dy)/(r.h/2));
+    return {x:cx+dx*s, y:cy+dy*s};
+  }
+  function getElbowPath(ra,rb){
+    const ca={x:ra.x+ra.w/2,y:ra.y+ra.h/2}, cb={x:rb.x+rb.w/2,y:rb.y+rb.h/2};
+    const dx=cb.x-ca.x, dy=cb.y-ca.y;
+    let p1, p2, d;
+    if(Math.abs(dx)>Math.abs(dy)){
+      if(ca.x<cb.x){ p1={x:ra.x+ra.w,y:ca.y}; p2={x:rb.x,y:cb.y}; }
+      else{ p1={x:ra.x,y:ca.y}; p2={x:rb.x+rb.w,y:cb.y}; }
+      const mx=(p1.x+p2.x)/2;
+      d=`M ${p1.x} ${p1.y} H ${mx} V ${p2.y} H ${p2.x}`;
+    }else{
+      if(ca.y<cb.y){ p1={x:ca.x,y:ra.y+ra.h}; p2={x:cb.x,y:rb.y}; }
+      else{ p1={x:ca.x,y:ra.y}; p2={x:cb.x,y:rb.y+rb.h}; }
+      const my=(p1.y+p2.y)/2;
+      d=`M ${p1.x} ${p1.y} V ${my} H ${p2.x} V ${p2.y}`;
+    }
+    return {p1,p2,d};
+  }
+  function redrawLinks(){
+    linkLayer.innerHTML="";
+    const byId=new Map(state.cards.map(c=>[c.id,c]));
+    state.links=state.links.filter(l=>byId.has(l.from)&&byId.has(l.to));
+    state.links.forEach(l=>{
+      const ra=screenRect(byId.get(l.from)), rb=screenRect(byId.get(l.to));
+      let p1, p2, d;
+      if(l.style==="elbow"){
+        const res=getElbowPath(ra,rb);
+        p1=res.p1; p2=res.p2; d=res.d;
+      }else{
+        const ca={x:ra.x+ra.w/2,y:ra.y+ra.h/2}, cb={x:rb.x+rb.w/2,y:rb.y+rb.h/2};
+        p1=edgePoint(ra,cb.x,cb.y); p2=edgePoint(rb,ca.x,ca.y);
+        d=`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+      }
+      const hit=document.createElementNS(SVGNS,"path");
+      hit.setAttribute("d",d); hit.setAttribute("class","link-hit");
+      hit.addEventListener("click",e=>{ e.stopPropagation(); selectLink(l.id); });
+      const vis=document.createElementNS(SVGNS,"path");
+      vis.setAttribute("d",d); vis.setAttribute("class","link-visible"); vis.setAttribute("marker-end","url(#arrow)");
+      linkLayer.appendChild(hit); linkLayer.appendChild(vis);
+    });
+    if(selectedLink){
+      const l=state.links.find(x=>x.id===selectedLink);
+      if(!l){ hideLinkDel(); return; }
+      const ra=screenRect(byId.get(l.from)), rb=screenRect(byId.get(l.to));
+      let p1, p2;
+      if(l.style==="elbow"){
+        const res=getElbowPath(ra,rb);
+        p1=res.p1; p2=res.p2;
+      }else{
+        const ca={x:ra.x+ra.w/2,y:ra.y+ra.h/2}, cb={x:rb.x+rb.w/2,y:rb.y+rb.h/2};
+        p1=edgePoint(ra,cb.x,cb.y); p2=edgePoint(rb,ca.x,ca.y);
+      }
+      if(l.style==="elbow"){
+        linkStyle.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 19L19 5"/></svg>';
+        linkStyle.title="Ganti ke konektor lurus";
+      }else{
+        linkStyle.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14V5"/></svg>';
+        linkStyle.title="Ganti ke konektor siku-siku";
+      }
+      linkActions.style.left=((p1.x+p2.x)/2)+"px";
+      linkActions.style.top=((p1.y+p2.y)/2)+"px";
+      linkActions.style.display="flex";
+    }
+  }
+  function selectLink(id){ selectedLink=id; redrawLinks(); }
+  function hideLinkDel(){ selectedLink=null; linkActions.style.display="none"; }
+  linkDel.addEventListener("click",()=>{
+    if(selectedLink){ state.links=state.links.filter(l=>l.id!==selectedLink); hideLinkDel(); redrawLinks(); save(); }
+  });
+  linkStyle.addEventListener("click",()=>{
+    if(selectedLink){
+      const l=state.links.find(x=>x.id===selectedLink);
+      if(l){ l.style=l.style==="elbow"?"straight":"elbow"; redrawLinks(); save(); }
+    }
+  });
+  function startConnector(source,ev){
+    ev.preventDefault();
+    const temp=document.createElementNS(SVGNS,"path");
+    temp.setAttribute("class","link-visible"); temp.setAttribute("marker-end","url(#arrow)");
+    linksSvg.appendChild(temp);
+    const ra=screenRect(source);
+    function move(e){ const p1=edgePoint(ra,e.clientX,e.clientY); temp.setAttribute("d",`M ${p1.x} ${p1.y} L ${e.clientX} ${e.clientY}`); }
+    function up(e){
+      document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); temp.remove();
+      const hit=document.elementFromPoint(e.clientX,e.clientY);
+      const tEl=hit?hit.closest(".card"):null;
+      if(tEl && tEl.dataset.id!==source.id){
+        const tid=tEl.dataset.id;
+        const dup=state.links.some(l=>(l.from===source.id&&l.to===tid)||(l.from===tid&&l.to===source.id));
+        if(!dup){ state.links.push({id:uid(),from:source.id,to:tid}); save(); }
+      }
+      redrawLinks();
+    }
+    document.addEventListener("pointermove",move); document.addEventListener("pointerup",up);
+  }
+
+  /* ---------- Render kartu ---------- */
+  function svgX(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'; }
+  function updateLockState(){
+    const btn=document.getElementById("lockBtn");
+    if(!btn) return;
+    if(state.locked){
+      board.classList.add("locked");
+      btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+      btn.title="Buka kunci layar (Unlock)";
+      btn.classList.add("active");
+    }else{
+      board.classList.remove("locked");
+      btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+      btn.title="Kunci pergeseran layar (Lock)";
+      btn.classList.remove("active");
+    }
+  }
+  function renderAll(){ world.innerHTML=""; els.clear(); state.cards.forEach(makeCard); applyWorld(); updateLockState(); }
+
+  function makeCard(card){
+    const el=document.createElement("div");
+    el.className="card "+card.type; el.dataset.id=card.id;
+    el.style.left=card.x+"px"; el.style.top=card.y+"px";
+    if(card.w) el.style.width=card.w+"px";
+    if(card.h) el.style.height=card.h+"px";
+    if(card.type==="note"){
+      el.style.background=card.color||COLORS[0];
+    }
+    const head=document.createElement("div"); head.className="card-head";
+    if(card.type==="todo"){
+      const title=document.createElement("div"); title.className="card-title";
+      title.contentEditable="true"; title.spellcheck=false; title.textContent=card.title||"";
+      title.addEventListener("input",()=>{ card.title=title.textContent; save(); redrawLinks(); });
+      head.appendChild(title);
+    }else{
+      const sp=document.createElement("div"); sp.className="card-title"; head.appendChild(sp);
+    }
+    const btns=document.createElement("div"); btns.className="head-btns";
+    if(card.type==="note"){
+      const colBtn=document.createElement("button"); colBtn.className="hbtn"; colBtn.title="Ganti warna";
+      colBtn.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>';
+      colBtn.addEventListener("pointerdown",e=>e.stopPropagation());
+      colBtn.addEventListener("click",()=>{ const i=COLORS.indexOf(card.color); card.color=COLORS[(i+1)%COLORS.length]; el.style.background=card.color; save(); });
+      btns.appendChild(colBtn);
+    }
+    const linkBtn=document.createElement("button"); linkBtn.className="hbtn link"; linkBtn.title="Seret ke kartu lain untuk menghubungkan";
+    linkBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="12" r="2.4" fill="currentColor"/><circle cx="18" cy="12" r="2.4" fill="currentColor"/><path d="M8.4 12h7.2"/></svg>';
+    linkBtn.addEventListener("pointerdown",e=>{ e.stopPropagation(); startConnector(card,e); });
+    btns.appendChild(linkBtn);
+    const delBtn=document.createElement("button"); delBtn.className="hbtn"; delBtn.title="Hapus kartu"; delBtn.innerHTML=svgX();
+    delBtn.addEventListener("pointerdown",e=>e.stopPropagation());
+    delBtn.addEventListener("click",()=>{
+      state.cards=state.cards.filter(c=>c.id!==card.id);
+      state.links=state.links.filter(l=>l.from!==card.id&&l.to!==card.id);
+      el.remove(); els.delete(card.id); redrawLinks(); save();
+    });
+    btns.appendChild(delBtn); head.appendChild(btns); el.appendChild(head);
+
+    if(card.type==="note"){
+      const body=document.createElement("div"); body.className="note-body";
+      body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
+      body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
+      body.addEventListener("pointerdown",e=>e.stopPropagation());
+      el.appendChild(body);
+    }else{
+      const body=document.createElement("div"); body.className="todo-body";
+      card.items=card.items||[];
+      card.items.forEach(it=>body.appendChild(makeTodoItem(card,it,body)));
+      const add=document.createElement("button"); add.className="add-item"; add.textContent="+ Tambah tugas";
+      add.addEventListener("pointerdown",e=>e.stopPropagation());
+      add.addEventListener("click",()=>{
+        const it={id:uid(),text:"",done:false}; card.items.push(it);
+        const node=makeTodoItem(card,it,body); body.insertBefore(node,add);
+        node.querySelector(".todo-text").focus(); save(); redrawLinks();
+      });
+      body.appendChild(add); el.appendChild(body);
+    }
+    const directions=["t","r","b","l","tl","tr","bl","br"];
+    directions.forEach(d=>{
+      const rz=document.createElement("div"); rz.className="resizer "+d; rz.dataset.type=d;
+      el.appendChild(rz);
+    });
+
+    enableDrag(el,head,card);
+    enableResize(el,card);
+    world.appendChild(el); els.set(card.id,el);
+    return el;
+  }
+
+  function makeTodoItem(card,item,body){
+    const row=document.createElement("div"); row.className="todo-item"+(item.done?" done":"");
+    const chk=document.createElement("div"); chk.className="chk";
+    chk.addEventListener("pointerdown",e=>e.stopPropagation());
+    chk.addEventListener("click",()=>{ item.done=!item.done; row.classList.toggle("done",item.done); save(); });
+    const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
+    txt.addEventListener("input",()=>{ item.text=sanitizeHTML(txt.innerHTML); save(); redrawLinks(); });
+    txt.addEventListener("pointerdown",e=>e.stopPropagation());
+    txt.addEventListener("keydown",e=>{
+      if(e.key==="Enter"){ e.preventDefault();
+        const ni={id:uid(),text:"",done:false}; const idx=card.items.indexOf(item); card.items.splice(idx+1,0,ni);
+        const node=makeTodoItem(card,ni,body); row.parentNode.insertBefore(node,row.nextSibling);
+        node.querySelector(".todo-text").focus(); save(); redrawLinks();
+      }
+    });
+    const del=document.createElement("button"); del.className="del-item"; del.innerHTML="&times;"; del.title="Hapus tugas";
+    del.addEventListener("pointerdown",e=>e.stopPropagation());
+    del.addEventListener("click",()=>{ card.items=card.items.filter(x=>x.id!==item.id); row.remove(); save(); redrawLinks(); });
+    row.appendChild(chk); row.appendChild(txt); row.appendChild(del);
+    return row;
+  }
+
+  /* ---------- Drag kartu ---------- */
+  function enableDrag(el,handle,card){
+    handle.addEventListener("pointerdown",(e)=>{
+      if(e.button!==0) return;
+      if(e.target.closest(".hbtn")) return;
+      const startX=e.clientX, startY=e.clientY;
+      const start=screenToWorld(startX,startY);
+      const offX=start.x-card.x, offY=start.y-card.y;
+      let isDragging=false;
+      function move(ev){
+        const dist=Math.hypot(ev.clientX-startX,ev.clientY-startY);
+        if(!isDragging&&dist>3){
+          isDragging=true;
+          el.classList.add("dragging");
+        }
+        if(isDragging){
+          ev.preventDefault();
+          const w=screenToWorld(ev.clientX,ev.clientY);
+          card.x=Math.round(w.x-offX); card.y=Math.round(w.y-offY);
+          el.style.left=card.x+"px"; el.style.top=card.y+"px"; redrawLinks();
+        }
+      }
+      function up(){
+        document.removeEventListener("pointermove",move);
+        document.removeEventListener("pointerup",up);
+        document.removeEventListener("pointercancel",up);
+        if(isDragging){
+          el.classList.remove("dragging");
+          state.cards=state.cards.filter(c=>c.id!==card.id); state.cards.push(card); save();
+        }
+      }
+      document.addEventListener("pointermove",move);
+      document.addEventListener("pointerup",up);
+      document.addEventListener("pointercancel",up);
+    });
+  }
+
+  /* ---------- Pan / zoom ---------- */
+  board.addEventListener("pointerdown",(e)=>{
+    if(state.locked) return;
+    if(e.target!==board&&e.target!==world) return;
+    hideLinkDel(); redrawLinks();
+    if(e.button!==0) return;
+    board.classList.add("panning");
+    const sx=e.clientX,sy=e.clientY,px=state.pan.x,py=state.pan.y;
+    function move(ev){ state.pan.x=px+(ev.clientX-sx); state.pan.y=py+(ev.clientY-sy); applyWorld(); }
+    function up(){
+      board.classList.remove("panning");
+      document.removeEventListener("pointermove",move);
+      document.removeEventListener("pointerup",up);
+      document.removeEventListener("pointercancel",up);
+      save();
+    }
+    document.addEventListener("pointermove",move);
+    document.addEventListener("pointerup",up);
+    document.addEventListener("pointercancel",up);
+  });
+  board.addEventListener("dblclick",(e)=>{
+    if(e.target!==board&&e.target!==world) return;
+    const w=screenToWorld(e.clientX,e.clientY); addNote(w.x-110,w.y-40);
+  });
+  board.addEventListener("wheel",(e)=>{
+    if(state.locked) return;
+    if(e.ctrlKey){
+      e.preventDefault();
+      const before=screenToWorld(e.clientX,e.clientY);
+      const factor=e.deltaY<0?1.1:1/1.1;
+      state.zoom=Math.min(2.4,Math.max(0.35,state.zoom*factor));
+      const after=screenToWorld(e.clientX,e.clientY);
+      state.pan.x+=(after.x-before.x)*state.zoom; state.pan.y+=(after.y-before.y)*state.zoom;
+      applyWorld(); save();
+    }else{
+      state.pan.x-=(e.shiftKey?e.deltaY:e.deltaX);
+      state.pan.y-=(e.shiftKey?0:e.deltaY);
+      applyWorld(); save();
+    }
+  },{passive:false});
+  window.addEventListener("resize",redrawLinks);
+
+  /* ---------- Aksi ---------- */
+  function addNote(x,y){
+    if(x===undefined){ const c=screenToWorld(board.clientWidth/2,board.clientHeight/2); x=c.x-110; y=c.y-60; }
+    const card={id:uid(),type:"note",x:Math.round(x),y:Math.round(y),color:COLORS[Math.floor(Math.random()*COLORS.length)],text:""};
+    state.cards.push(card); const el=makeCard(card); el.querySelector(".note-body").focus(); save(); redrawLinks();
+  }
+  function addTodo(){
+    const c=screenToWorld(board.clientWidth/2,board.clientHeight/2);
+    const card={id:uid(),type:"todo",x:Math.round(c.x-110),y:Math.round(c.y-70),title:"To-do",items:[{id:uid(),text:"",done:false}]};
+    state.cards.push(card); const el=makeCard(card); el.querySelector(".todo-text").focus(); save(); redrawLinks();
+  }
+  function flashStatus(msg,isAmber){
+    const oldText=statusTxt.textContent;
+    const oldMem=statusEl.classList.contains("mem");
+    statusTxt.textContent=msg;
+    if(isAmber) statusEl.classList.add("mem"); else statusEl.classList.remove("mem");
+    setTimeout(()=>{
+      statusTxt.textContent=oldText;
+      if(oldMem) statusEl.classList.add("mem"); else statusEl.classList.remove("mem");
+    },3500);
+  }
+  function copyToClipboard(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>{
+        flashStatus("Data disalin ke clipboard! 📋");
+      }).catch(()=>fallbackCopy(text));
+    }else{
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text){
+    const ta=document.createElement("textarea");
+    ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{
+      document.execCommand("copy");
+      flashStatus("Data disalin ke clipboard! 📋");
+    }catch(e){
+      alert("Gagal menyalin data ke clipboard.");
+    }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById("addNote").addEventListener("click",()=>addNote());
+  document.getElementById("addTodo").addEventListener("click",addTodo);
+  document.getElementById("exportBtn").addEventListener("click",()=>{
+    const jsonStr=JSON.stringify(state,null,2);
+    copyToClipboard(jsonStr);
+    try{
+      const blob=new Blob([jsonStr],{type:"application/json"});
+      const url=URL.createObjectURL(blob); const a=document.createElement("a"); const d=new Date();
+      a.href=url; a.download=`papan-proyek-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
+      a.click(); URL.revokeObjectURL(url);
+    }catch(e){}
+  });
+  document.getElementById("importBtn").addEventListener("click",()=>{
+    const txt=prompt("Tempel (Paste) teks JSON hasil ekspor di sini untuk memuat data:\n(Kosongkan jika ingin memilih file)");
+    if(txt && txt.trim()){
+      try{
+        const data=JSON.parse(txt);
+        if(!data||!Array.isArray(data.cards)) throw 0;
+        state=data; if(!state.pan)state.pan={x:0,y:0}; if(!state.zoom)state.zoom=1; if(!state.links)state.links=[]; if(state.locked===undefined)state.locked=false;
+        selectedLink=null; hideLinkDel(); renderAll(); save();
+        flashStatus("Data berhasil di-import! 📥");
+      }catch(err){
+        alert("Format JSON tidak valid.");
+      }
+    }else if(txt !== null){
+      document.getElementById("fileInput").click();
+    }
+  });
+  document.getElementById("fileInput").addEventListener("change",(e)=>{
+    const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+    r.onload=()=>{ try{
+      const data=JSON.parse(r.result);
+      if(!data||!Array.isArray(data.cards)) throw 0;
+      state=data; if(!state.pan)state.pan={x:0,y:0}; if(!state.zoom)state.zoom=1; if(!state.links)state.links=[]; if(state.locked===undefined)state.locked=false;
+      selectedLink=null; hideLinkDel(); renderAll(); save();
+      flashStatus("Data berhasil di-import! 📥");
+    }catch(err){ alert("File tidak valid — pastikan hasil Export dari papan ini."); } };
+    r.readAsText(f); e.target.value="";
+  });
+  document.getElementById("resetBtn").addEventListener("click",()=>{
+    if(confirm("Kosongkan seluruh papan? Export dulu kalau mau simpan.")){
+      state={pan:{x:120,y:90},zoom:1,cards:[],links:[],locked:false}; selectedLink=null; hideLinkDel(); renderAll(); save();
+    }
+  });
+
+  function zoomCenter(zoomInFlag){
+    const cx=board.clientWidth/2;
+    const cy=board.clientHeight/2;
+    const before=screenToWorld(cx,cy);
+    const factor=zoomInFlag?1.2:1/1.2;
+    state.zoom=Math.min(2.4,Math.max(0.35,state.zoom*factor));
+    const after=screenToWorld(cx,cy);
+    state.pan.x+=(after.x-before.x)*state.zoom; state.pan.y+=(after.y-before.y)*state.zoom;
+    applyWorld(); save();
+  }
+  document.getElementById("zoomOut").addEventListener("click",()=>zoomCenter(false));
+  document.getElementById("zoomIn").addEventListener("click",()=>zoomCenter(true));
+  document.getElementById("lockBtn").addEventListener("click",()=>{
+    state.locked=!state.locked;
+    updateLockState();
+    save();
+  });
+
+  /* ---------- Text Formatting Actions ---------- */
+  document.addEventListener("focusin",(e)=>{
+    if(e.target.contentEditable==="true"||e.target.closest("[contenteditable='true']")){
+      document.getElementById("textToolbar").style.display="flex";
+    }
+  });
+  document.addEventListener("focusout",()=>{
+    setTimeout(()=>{
+      const active=document.activeElement;
+      const inside=active&&(active.contentEditable==="true"||active.closest(".card")||active.closest("#textToolbar"));
+      if(!inside){
+        document.getElementById("textToolbar").style.display="none";
+      }
+    },100);
+  });
+
+  const formatBtns=["btnBold","btnItalic","btnUnderline","btnStrike","btnUpper","btnLower"];
+  const formatCmds={
+    btnBold:"bold",
+    btnItalic:"italic",
+    btnUnderline:"underline",
+    btnStrike:"strikeThrough",
+    btnUpper:"uppercase",
+    btnLower:"lowercase"
+  };
+  formatBtns.forEach(id=>{
+    const btn=document.getElementById(id);
+    if(btn){
+      btn.addEventListener("pointerdown",e=>{
+        e.preventDefault();
+        const cmd=formatCmds[id];
+        formatText(cmd);
+      });
+    }
+  });
+
+  renderAll(); save();
+})();
+</script>
+</body>
+</html>
