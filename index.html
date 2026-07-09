@@ -563,8 +563,6 @@
       body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
       body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
       body.addEventListener("pointerdown",e=>e.stopPropagation());
-      body.addEventListener("pointermove",e=>e.stopPropagation());
-      body.addEventListener("mousemove",e=>e.stopPropagation());
       el.appendChild(body);
     }else{
       const body=document.createElement("div"); body.className="todo-body";
@@ -599,8 +597,6 @@
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
     txt.addEventListener("input",()=>{ item.text=sanitizeHTML(txt.innerHTML); save(); redrawLinks(); });
     txt.addEventListener("pointerdown",e=>e.stopPropagation());
-    txt.addEventListener("pointermove",e=>e.stopPropagation());
-    txt.addEventListener("mousemove",e=>e.stopPropagation());
     txt.addEventListener("keydown",e=>{
       if(e.key==="Enter"){ e.preventDefault();
         const ni={id:uid(),text:"",done:false}; const idx=card.items.indexOf(item); card.items.splice(idx+1,0,ni);
@@ -799,7 +795,8 @@
 
   /* ---------- Text Formatting Actions ---------- */
   document.addEventListener("focusin",(e)=>{
-    if(e.target.contentEditable==="true"||e.target.closest("[contenteditable='true']")){
+    const target=e.target;
+    if(target && target.closest && (target.contentEditable==="true"||target.closest("[contenteditable='true']"))){
       document.getElementById("textToolbar").style.display="flex";
     }
   });
