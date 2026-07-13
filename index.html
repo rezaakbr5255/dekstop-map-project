@@ -1422,6 +1422,9 @@
             pickerEl = null;
           });
           row.insertBefore(pickerEl, btns);
+          setTimeout(() => {
+            pickerEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }, 50);
         }
       }
       dateDisplay.addEventListener("pointerdown", e => { e.stopPropagation(); e.preventDefault(); togglePicker(); });
@@ -1553,8 +1556,18 @@
     editBtn.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
     editBtn.addEventListener("click", function(e){
       e.stopPropagation();
+      const el = els.get(card.id);
+      if (el && card.h && card.h < 380) {
+        card.h = 380;
+        el.style.height = "380px";
+        save();
+        redrawLinks();
+      }
       var editRow = makeReminderItem(card, item, body, true);
       row.parentNode.replaceChild(editRow, row);
+      setTimeout(() => {
+        editRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
     });
     const delBtn = document.createElement("button");
     delBtn.className = "rem-action-btn del";
@@ -1594,11 +1607,21 @@
     add.textContent = "+ Tambah Pengingat";
     add.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
     add.addEventListener("click", function(){
+      const el = els.get(card.id);
+      if (el && card.h && card.h < 380) {
+        card.h = 380;
+        el.style.height = "380px";
+        save();
+        redrawLinks();
+      }
       var ni = { id: uid(), text: "", category: "Umum", recurrence: "none", recurDays: [], datetime: "", done: false };
       card.items.push(ni);
       var editRow = makeReminderItem(card, ni, body, true);
       body.insertBefore(editRow, add);
       editRow.querySelector(".rem-input").focus();
+      setTimeout(() => {
+        editRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
     });
     body.appendChild(add);
   }
