@@ -72,6 +72,13 @@
   .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
   .todo-item:hover{background:rgba(0,0,0,.04)}
+  @keyframes todo-flash {
+    0% { background: rgba(59, 130, 246, 0.25); }
+    100% { background: transparent; }
+  }
+  .todo-item.highlighted {
+    animation: todo-flash 0.8s ease-out;
+  }
   .todo-priority-dot {
     width: 8px;
     height: 8px;
@@ -1178,7 +1185,7 @@
     });
   }
 
-  function renderTodoList(card, body){
+  function renderTodoList(card, body, highlightId){
     let add = body.querySelector(".add-item");
     if(!add){
       add = document.createElement("button"); add.className="add-item"; add.textContent="+ Tambah tugas";
@@ -1191,7 +1198,16 @@
     }
     body.innerHTML = "";
     sortTodoItems(card);
-    card.items.forEach(it => body.appendChild(makeTodoItem(card, it, body)));
+    card.items.forEach(it => {
+      const node = makeTodoItem(card, it, body);
+      if(highlightId && it.id === highlightId){
+        node.classList.add("highlighted");
+        setTimeout(() => {
+          node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+      }
+      body.appendChild(node);
+    });
     body.appendChild(add);
   }
 
@@ -1217,7 +1233,7 @@
       
       item.priority=nextP;
       save();
-      renderTodoList(card, body);
+      renderTodoList(card, body, item.id);
     });
 
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
