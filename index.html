@@ -79,6 +79,44 @@
   .todo-item.highlighted {
     animation: todo-flash 0.8s ease-out;
   }
+  .todo-priority-popover {
+    position: fixed;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    align-items: center;
+  }
+  .todo-popover-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  .todo-popover-dot:hover {
+    transform: scale(1.2);
+  }
+  .todo-popover-dot.urgent {
+    background: #ef4444;
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+  }
+  .todo-popover-dot.medium {
+    background: #22c55e;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+  }
+  .todo-popover-dot.low {
+    background: #2563eb;
+    box-shadow: 0 0 4px rgba(37, 99, 235, 0.4);
+  }
+  .todo-popover-dot.archive {
+    background: #94a3b8;
+  }
   .todo-priority-dot {
     width: 8px;
     height: 8px;
@@ -1225,15 +1263,50 @@
     dot.addEventListener("mousedown",e=>e.stopPropagation());
     dot.addEventListener("click",e=>{
       e.stopPropagation();
-      let nextP="medium";
-      if(item.priority==="urgent") nextP="medium";
-      else if(item.priority==="medium" || !item.priority) nextP="low";
-      else if(item.priority==="low") nextP="archive";
-      else if(item.priority==="archive") nextP="urgent";
+      e.preventDefault();
+      const existing = document.querySelector(".todo-priority-popover");
+      if (existing) existing.remove();
       
-      item.priority=nextP;
-      save();
-      renderTodoList(card, body, item.id);
+      const popover = document.createElement("div");
+      popover.className = "todo-priority-popover";
+      popover.addEventListener("pointerdown", e => e.stopPropagation());
+      popover.addEventListener("mousedown", e => e.stopPropagation());
+      popover.addEventListener("click", e => e.stopPropagation());
+      
+      const priorities = [
+        { val: "urgent", text: "Prioritas (Merah)", color: "urgent" },
+        { val: "medium", text: "Sedang (Hijau)", color: "medium" },
+        { val: "low", text: "Tidak Prioritas (Biru)", color: "low" },
+        { val: "archive", text: "Arsip (Abu-abu)", color: "archive" }
+      ];
+      
+      priorities.forEach(p => {
+        const option = document.createElement("div");
+        option.className = "todo-popover-dot " + p.color;
+        option.title = p.text;
+        option.addEventListener("click", e => {
+          e.stopPropagation();
+          item.priority = p.val;
+          save();
+          popover.remove();
+          renderTodoList(card, body, item.id);
+        });
+        popover.appendChild(option);
+      });
+      
+      const rect = dot.getBoundingClientRect();
+      popover.style.left = rect.left + "px";
+      popover.style.top = (rect.bottom + 4) + "px";
+      
+      document.body.appendChild(popover);
+      
+      const removeHandler = e => {
+        if (!popover.contains(e.target) && e.target !== dot) {
+          popover.remove();
+          document.removeEventListener("pointerdown", removeHandler);
+        }
+      };
+      document.addEventListener("pointerdown", removeHandler);
     });
 
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
