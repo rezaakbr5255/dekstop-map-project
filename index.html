@@ -82,16 +82,20 @@
     transition: all 0.15s ease;
     border: 1px solid transparent;
   }
-  .todo-priority-dot.medium {
-    background: #cbd5e1;
-  }
   .todo-priority-dot.urgent {
     background: #ef4444;
     box-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
   }
-  .todo-priority-dot.low {
+  .todo-priority-dot.medium {
     background: #22c55e;
     box-shadow: 0 0 5px rgba(34, 197, 94, 0.5);
+  }
+  .todo-priority-dot.low {
+    background: #2563eb;
+    box-shadow: 0 0 5px rgba(37, 99, 235, 0.5);
+  }
+  .todo-priority-dot.archive {
+    background: #94a3b8;
   }
   .chk{
     width:17px;height:17px;flex:none;margin-top:1px;border:1.8px solid #9aa2b1;border-radius:5px;
@@ -136,14 +140,9 @@
   .priority-dot.oranye{background:#f59e0b;box-shadow:0 0 4px #f59e0b}
   .priority-dot.hijau{background:#10b981;box-shadow:0 0 4px #10b981}
   .rem-countdown{font-size:11px;font-weight:600;color:#64748b;margin-left:auto;white-space:nowrap}
-  .rem-countdown.approaching{color:#ef4444;animation:pulse-red 1.5s infinite}
+  .rem-countdown.approaching{color:#ef4444}
   .rem-countdown.overdue{color:#b91c1c;font-weight:bold}
   .rem-countdown.done{color:#15803d}
-  @keyframes pulse-red {
-    0% { opacity: 1; }
-    50% { opacity: 0.55; }
-    100% { opacity: 1; }
-  }
   .rem-editor{display:flex;flex-direction:column;gap:6px;background:rgba(0,0,0,.04);padding:8px;border-radius:8px;border:1px dashed rgba(0,0,0,.15)}
   .rem-input{width:100%;padding:4px 6px;border:1px solid rgba(0,0,0,.15);border-radius:5px;font-size:12.5px;background:#fff;color:var(--ink);outline:none}
   .rem-input:focus{border-color:var(--accent)}
@@ -433,6 +432,7 @@
 (function(){
   "use strict";
   const KEY="papan-proyek-v1";
+  const CURRENT_VERSION=2;
   const SVGNS="http://www.w3.org/2000/svg";
   const COLORS=["#fde68a","#bbf7d0","#bae6fd","#fbcfe8","#ddd6fe","#fed7aa","#a7f3d0","#fecaca"];
 
@@ -446,10 +446,9 @@
   const statusEl=document.getElementById("status");
   const statusTxt=document.getElementById("statusTxt");
 
-  let state=load()||seed();
-  if(!state.links) state.links=[];
-  state.locked=true; // Selalu kunci pergeseran layar saat pertama kali dimuat (boot/startup)
-  state.blurred=true; // Selalu aktifkan sensor blur saat pertama kali dimuat (boot/startup)
+  let loadHadError=false;
+  const loadedState=load();
+  let state=migrate(loadedState||seed());
   let selectedLink=null;
   const els=new Map();
 
@@ -512,7 +511,7 @@
     return `${Y}-${M}-${D}T${H}:${Min}`;
   }
 
-  function getNextOccurrence(currentDatetimeStr, recurrence, recurDays){
+  function getNextOccurrence(currentDatetimeStr, recurrence, recurDays, recurDay){
     let d = new Date(currentDatetimeStr);
     if(isNaN(d.getTime())) d = new Date();
     if(recurrence === "daily"){
@@ -534,9 +533,27 @@
         if(!found) d.setDate(d.getDate() + 7);
       }
     } else if(recurrence === "monthly"){
+      const anchor = Math.min(31, Math.max(1, Number(recurDay) || d.getDate()));
+      d.setDate(1);
       d.setMonth(d.getMonth() + 1);
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(anchor, lastDay));
     }
     return toLocalISOString(d);
+  }
+
+  function getNextUpcomingOccurrence(currentDatetimeStr, recurrence, recurDays, recurDay, nowMs){
+    const threshold=Number.isFinite(nowMs)?nowMs:Date.now();
+    let next=getNextOccurrence(currentDatetimeStr,recurrence,recurDays,recurDay);
+    let guard=0;
+    while(new Date(next).getTime()<=threshold&&guard<500){
+      next=getNextOccurrence(next,recurrence,recurDays,recurDay);
+      guard++;
+    }
+    if(new Date(next).getTime()<=threshold){
+      next=getNextOccurrence(toLocalISOString(new Date(threshold)),recurrence,recurDays,recurDay);
+    }
+    return next;
   }
 
   function createCustomDropdown(options, selectedVal, onChange){
@@ -806,18 +823,66 @@
   }
 
   /* ---------- Persistensi ---------- */
-  function load(){ try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null;}catch(e){return null;} }
+  function load(){
+    try{
+      const r=localStorage.getItem(KEY);
+      return r?JSON.parse(r):null;
+    }catch(e){
+      loadHadError=true;
+      return null;
+    }
+  }
+  function migrate(data){
+    const next=data&&typeof data==="object"?data:seed();
+    if(!next.pan||typeof next.pan!=="object") next.pan={x:0,y:0};
+    if(!Number.isFinite(next.pan.x)) next.pan.x=0;
+    if(!Number.isFinite(next.pan.y)) next.pan.y=0;
+    next.zoom=Number.isFinite(next.zoom)?Math.min(2.4,Math.max(0.35,next.zoom)):1;
+    if(!Array.isArray(next.cards)) next.cards=[];
+    if(!Array.isArray(next.links)) next.links=[];
+    if(typeof next.locked!=="boolean") next.locked=false;
+    if(typeof next.blurred!=="boolean") next.blurred=false;
+    next.cards.forEach(card=>{
+      if(card&&card.type==="reminder"){
+        if(!Array.isArray(card.items)) card.items=[];
+        card.items.forEach(item=>{
+          if(!item||typeof item!=="object") return;
+          if(!item.recurrence) item.recurrence="none";
+          if(!Array.isArray(item.recurDays)) item.recurDays=[];
+          if(item.recurrence==="monthly"&&(!Number.isInteger(item.recurDay)||item.recurDay<1||item.recurDay>31)){
+            const parsed=new Date(item.datetime);
+            item.recurDay=isNaN(parsed.getTime())?1:parsed.getDate();
+          }
+        });
+      }
+    });
+    next.v=CURRENT_VERSION;
+    return next;
+  }
   let saveTimer=null;
+  function persistNow(){
+    try{
+      localStorage.setItem(KEY,JSON.stringify(state));
+      statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
+      return true;
+    }catch(e){
+      statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
+      return false;
+    }
+  }
   function save(){
     clearTimeout(saveTimer);
     saveTimer=setTimeout(()=>{
-      try{
-        localStorage.setItem(KEY,JSON.stringify(state));
-        statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
-      }catch(e){
-        statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
-      }
+      saveTimer=null;
+      persistNow();
     },350);
+  }
+  function flushSave(){
+    if(saveTimer){
+      clearTimeout(saveTimer);
+      saveTimer=null;
+      persistNow();
+    }
   }
   function uid(){ return "c"+Math.random().toString(36).slice(2,9); }
   function seed(){
@@ -1080,15 +1145,8 @@
     }else if(card.type==="todo"){
       const body=document.createElement("div"); body.className="todo-body";
       card.items=card.items||[];
-      card.items.forEach(it=>body.appendChild(makeTodoItem(card,it,body)));
-      const add=document.createElement("button"); add.className="add-item"; add.textContent="+ Tambah tugas";
-      add.addEventListener("pointerdown",e=>e.stopPropagation());
-      add.addEventListener("click",()=>{
-        const it={id:uid(),text:"",done:false}; card.items.push(it);
-        const node=makeTodoItem(card,it,body); body.insertBefore(node,add);
-        node.querySelector(".todo-text").focus(); save(); redrawLinks();
-      });
-      body.appendChild(add); el.appendChild(body);
+      el.appendChild(body);
+      renderTodoList(card, body);
     }else if(card.type==="reminder"){
       const body=document.createElement("div"); body.className="reminder-body";
       el.appendChild(body);
@@ -1106,6 +1164,37 @@
     return el;
   }
 
+  function sortTodoItems(card){
+    const weights = {
+      "urgent": 1,
+      "medium": 2,
+      "low": 3,
+      "archive": 4
+    };
+    card.items.sort((a, b) => {
+      const wA = weights[a.priority] || 2;
+      const wB = weights[b.priority] || 2;
+      return wA - wB;
+    });
+  }
+
+  function renderTodoList(card, body){
+    let add = body.querySelector(".add-item");
+    if(!add){
+      add = document.createElement("button"); add.className="add-item"; add.textContent="+ Tambah tugas";
+      add.addEventListener("pointerdown",e=>e.stopPropagation());
+      add.addEventListener("click",()=>{
+        const it={id:uid(),text:"",done:false,priority:"medium"}; card.items.push(it);
+        const node=makeTodoItem(card,it,body); body.insertBefore(node,add);
+        node.querySelector(".todo-text").focus(); save(); redrawLinks();
+      });
+    }
+    body.innerHTML = "";
+    sortTodoItems(card);
+    card.items.forEach(it => body.appendChild(makeTodoItem(card, it, body)));
+    body.appendChild(add);
+  }
+
   function makeTodoItem(card,item,body){
     const row=document.createElement("div"); row.className="todo-item"+(item.done?" done":"");
     const chk=document.createElement("div"); chk.className="chk";
@@ -1115,19 +1204,20 @@
     const dot=document.createElement("div");
     const pVal=item.priority||"medium";
     dot.className="todo-priority-dot "+pVal;
-    dot.title=pVal==="urgent"?"Urgent (Merah)": (pVal==="low"?"Rendah (Hijau)":"Sedang (Abu-abu)");
+    dot.title=pVal==="urgent"?"Prioritas (Merah)": (pVal==="low"?"Tidak Prioritas (Biru)": (pVal==="archive"?"Arsip (Abu-abu)":"Sedang (Hijau)"));
     dot.addEventListener("pointerdown",e=>e.stopPropagation());
     dot.addEventListener("mousedown",e=>e.stopPropagation());
     dot.addEventListener("click",e=>{
       e.stopPropagation();
       let nextP="medium";
-      if(item.priority==="medium" || !item.priority) nextP="urgent";
-      else if(item.priority==="urgent") nextP="low";
-      else if(item.priority==="low") nextP="medium";
+      if(item.priority==="urgent") nextP="medium";
+      else if(item.priority==="medium" || !item.priority) nextP="low";
+      else if(item.priority==="low") nextP="archive";
+      else if(item.priority==="archive") nextP="urgent";
+      
       item.priority=nextP;
-      dot.className="todo-priority-dot "+nextP;
-      dot.title=nextP==="urgent"?"Urgent (Merah)": (nextP==="low"?"Rendah (Hijau)":"Sedang (Abu-abu)");
       save();
+      renderTodoList(card, body);
     });
 
     const txt=document.createElement("div"); txt.className="todo-text"; txt.contentEditable="true"; txt.spellcheck=false; txt.innerHTML=sanitizeHTML(item.text||"");
@@ -1271,14 +1361,16 @@
         item.recurrence = recurSel.getValue();
         item.recurDays = Array.from(activeDays);
         item.datetime = tempDatetime;
+        if(item.recurrence === "monthly"){
+          const selectedDate = new Date(tempDatetime);
+          item.recurDay = isNaN(selectedDate.getTime()) ? 1 : selectedDate.getDate();
+        }else{
+          delete item.recurDay;
+        }
         item.done = false;
         clearTimeout(saveTimer);
-        try{
-          localStorage.setItem(KEY,JSON.stringify(state));
-          statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
-        }catch(e){
-          statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
-        }
+        saveTimer=null;
+        persistNow();
         renderReminderList(card, body);
         redrawLinks();
       });
@@ -1299,7 +1391,12 @@
     chk.className = "chk";
     chk.addEventListener("click", function(){
       if(item.recurrence && item.recurrence !== "none") {
-        const nextDt = getNextOccurrence(item.datetime || toLocalISOString(new Date()), item.recurrence, item.recurDays || []);
+        const nextDt = getNextUpcomingOccurrence(
+          item.datetime || toLocalISOString(new Date()),
+          item.recurrence,
+          item.recurDays || [],
+          item.recurDay
+        );
         item.datetime = nextDt;
         item.done = false;
         flashStatus("Pengingat berulang diperbarui ke tanggal berikutnya! 🔄");
@@ -1557,27 +1654,14 @@
     }catch(e){}
   });
   document.getElementById("importBtn").addEventListener("click",()=>{
-    const txt=prompt("Tempel (Paste) teks JSON hasil ekspor di sini untuk memuat data:\n(Kosongkan jika ingin memilih file)");
-    if(txt && txt.trim()){
-      try{
-        const data=JSON.parse(txt);
-        if(!data||!Array.isArray(data.cards)) throw 0;
-        state=data; if(!state.pan)state.pan={x:0,y:0}; if(!state.zoom)state.zoom=1; if(!state.links)state.links=[]; if(state.locked===undefined)state.locked=false;
-        selectedLink=null; hideLinkDel(); renderAll(); save();
-        flashStatus("Data berhasil di-import! 📥");
-      }catch(err){
-        alert("Format JSON tidak valid.");
-      }
-    }else if(txt !== null){
-      document.getElementById("fileInput").click();
-    }
+    document.getElementById("fileInput").click();
   });
   document.getElementById("fileInput").addEventListener("change",(e)=>{
     const f=e.target.files[0]; if(!f) return; const r=new FileReader();
     r.onload=()=>{ try{
       const data=JSON.parse(r.result);
       if(!data||!Array.isArray(data.cards)) throw 0;
-      state=data; if(!state.pan)state.pan={x:0,y:0}; if(!state.zoom)state.zoom=1; if(!state.links)state.links=[]; if(state.locked===undefined)state.locked=false;
+      state=migrate(data);
       selectedLink=null; hideLinkDel(); renderAll(); save();
       flashStatus("Data berhasil di-import! 📥");
     }catch(err){ alert("File tidak valid — pastikan hasil Export dari papan ini."); } };
@@ -1585,7 +1669,7 @@
   });
   document.getElementById("resetBtn").addEventListener("click",()=>{
     if(confirm("Kosongkan seluruh papan? Export dulu kalau mau simpan.")){
-      state={pan:{x:120,y:90},zoom:1,cards:[],links:[],locked:false}; selectedLink=null; hideLinkDel(); renderAll(); save();
+      state=migrate({pan:{x:120,y:90},zoom:1,cards:[],links:[],locked:false,blurred:false}); selectedLink=null; hideLinkDel(); renderAll(); save();
     }
   });
 
@@ -1649,8 +1733,21 @@
     }
   });
 
-  renderAll(); save();
-  setInterval(tickCountdowns, 30000);
+  window.addEventListener("pagehide",flushSave);
+  window.addEventListener("beforeunload",flushSave);
+
+  renderAll();
+  if(loadHadError){
+    statusEl.classList.add("mem");
+    statusTxt.textContent="Gagal baca penyimpanan — jangan reset, pakai Import/Export";
+  }else{
+    save();
+  }
+  document.addEventListener("pointerdown",tickCountdowns,{capture:true});
+  window.addEventListener("focus",tickCountdowns);
+  document.addEventListener("visibilitychange",()=>{
+    if(!document.hidden) tickCountdowns();
+  });
 })();
 </script>
 </body>

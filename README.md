@@ -65,7 +65,7 @@ interface TodoCard {
     id: string;
     text: string;
     done: boolean;
-    priority?: "urgent" | "medium" | "low"; // urgent=red, medium=gray, low=green
+    priority?: "urgent" | "medium" | "low" | "archive"; // urgent=red, medium=green, low=blue, archive=gray
   }>;
 }
 
@@ -121,7 +121,7 @@ Replaces `<input type="datetime-local">` with an interactive, dark-themed calend
 
 ### C. To-Do Item Priority Dot
 - Positioned inside each todo list row.
-- Cycles priority colors on click: Gray (`medium`) $\rightarrow$ Red (`urgent`) $\rightarrow$ Green (`low`) $\rightarrow$ Gray (`medium`).
+- Cycles priority colors on click: Red (`urgent`) $\rightarrow$ Green (`medium`) $\rightarrow$ Blue (`low`) $\rightarrow$ Gray (`archive`) $\rightarrow$ Red (`urgent`), and automatically sorts items.
 
 ### D. Automated Markdown Lists
 - When typing inside a note card's body, the keydown handler automatically detects:
