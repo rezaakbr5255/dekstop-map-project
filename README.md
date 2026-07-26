@@ -175,7 +175,17 @@ Provides mouse-only controls for multiple local boards:
 
 ---
 
-## 6. How to Edit and Extend the Code
+## 6. Update Wallpaper Tanpa Kehilangan Data
+
+GitHub menyimpan kode, bukan isi board yang tersimpan di `localStorage`. Sebelum mengganti wallpaper atau memasang versi baru:
+
+1. Buka versi lama, klik `Export`, lalu simpan file JSON di luar folder wallpaper.
+2. Jangan hapus folder lama sebelum file JSON dapat dibuka dan ukurannya masuk akal.
+3. Pasang versi baru. Jika dijalankan dari lokasi/origin yang sama, aplikasi akan membaca key `papan-proyek-v1` dan melakukan migrasi otomatis.
+4. Jika board kosong karena lokasi/origin berubah, klik `Import` dan pilih file JSON tadi.
+5. Setelah semua board, reminder, To-do, dan gambar diperiksa, lakukan `Export` lagi sebagai backup baru.
+
+## 7. How to Edit and Extend the Code
 
 When implementing new features, remember these guidelines:
 1. **Maintain Single-file Coherence**: Write new CSS styles in `<style>` blocks in `index.html` and logic within the main IIFE function.
