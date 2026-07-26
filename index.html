@@ -68,6 +68,33 @@
   .note-body li {
     margin-bottom: 2.5px;
   }
+  .note-body img{
+    display:block;max-width:100%;height:auto;margin:8px 0;border-radius:8px;
+    box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:default;
+  }
+  .note-body img.note-image-selected{outline:2px solid var(--accent);outline-offset:2px}
+  #imageResizeOverlay{
+    position:absolute;display:none;z-index:1400;pointer-events:none;
+    border:1px dashed var(--accent);box-shadow:0 0 0 1px rgba(15,17,22,.35);
+  }
+  .image-resize-handle{
+    position:absolute;width:12px;height:12px;border:2px solid #fff;border-radius:50%;
+    background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.45);
+    pointer-events:auto;touch-action:none;
+  }
+  .image-resize-handle.tl{left:-7px;top:-7px;cursor:nwse-resize}
+  .image-resize-handle.tr{right:-7px;top:-7px;cursor:nesw-resize}
+  .image-resize-handle.bl{left:-7px;bottom:-7px;cursor:nesw-resize}
+  .image-resize-handle.br{right:-7px;bottom:-7px;cursor:nwse-resize}
+  .card.image{background:#f8fafc;overflow:hidden;min-height:150px}
+  .image-body{
+    flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;background:#0b0d12;border-radius:0 0 12px 12px;
+  }
+  .board-image{
+    display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;
+    -webkit-user-select:none;user-select:none;-webkit-user-drag:none;
+  }
 
   .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
@@ -340,6 +367,7 @@
   .tbtn{
     display:flex;align-items:center;gap:7px;height:38px;padding:0 13px;border:none;border-radius:9px;
     background:var(--panel-2);color:var(--txt);font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;
+    white-space:nowrap;
   }
   .tbtn:hover{background:#2c313c}
   .tbtn svg{width:16px;height:16px;flex:none}
@@ -348,6 +376,18 @@
   .tsep{width:1px;height:24px;background:var(--line);margin:0 3px}
   .tbtn.ghost{background:transparent;color:var(--muted);padding:0 11px}
   .tbtn.ghost:hover{background:var(--panel-2);color:var(--txt)}
+  .tbtn:disabled{opacity:.45;cursor:not-allowed;filter:saturate(.6)}
+  .board-switcher{
+    display:flex;align-items:center;gap:6px;padding:0 4px;flex:0 0 auto;flex-wrap:nowrap;
+  }
+  .board-label{
+    min-width:72px;height:38px;padding:0 12px;border-radius:9px;border:1px solid var(--line);
+    background:rgba(0,0,0,.16);color:var(--txt);display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600;white-space:nowrap;user-select:none;flex:0 0 auto;
+  }
+  .board-switcher .tbtn{min-width:38px;flex:0 0 auto}
+  .board-add-btn{white-space:nowrap;flex:0 0 auto}
+  .board-add-btn svg{width:14px;height:14px;flex:none}
 
   #status{
     position:fixed;left:16px;bottom:74px;z-index:1000;font-size:11.5px;color:var(--muted);
@@ -421,6 +461,12 @@
       <g id="linkLayer"></g>
     </svg>
     <div id="world"></div>
+    <div id="imageResizeOverlay" aria-hidden="true">
+      <div class="image-resize-handle tl" data-image-resize="tl"></div>
+      <div class="image-resize-handle tr" data-image-resize="tr"></div>
+      <div class="image-resize-handle bl" data-image-resize="bl"></div>
+      <div class="image-resize-handle br" data-image-resize="br"></div>
+    </div>
   </div>
 
   <div id="linkActions">
@@ -451,10 +497,25 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       Reminder
     </button>
+    <button class="tbtn" id="addImage" title="Upload gambar ke papan atau catatan yang sedang aktif">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      Gambar
+    </button>
     <div class="tsep"></div>
     <button class="tbtn ghost" id="exportBtn">Export</button>
     <button class="tbtn ghost" id="importBtn">Import</button>
     <button class="tbtn ghost" id="resetBtn">Reset</button>
+    <div class="board-switcher">
+      <button class="tbtn ghost" id="prevBoard" title="Papan sebelumnya">‹</button>
+      <div class="board-label" id="boardLabel">1/1</div>
+      <button class="tbtn ghost" id="nextBoard" title="Papan berikutnya">›</button>
+      <button class="tbtn primary board-add-btn" id="addBoard" title="Tambah papan baru">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        <span>Papan</span>
+      </button>
+    </div>
     <div class="tsep"></div>
     <button class="tbtn ghost" id="zoomOut" title="Perkecil (Zoom Out)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"/></svg>
@@ -469,6 +530,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
     </button>
     <input type="file" id="fileInput" accept="application/json" style="display:none" />
+    <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple style="display:none" />
   </div>
 
   <div id="status"><span class="dot"></span><span id="statusTxt">Tersimpan otomatis</span></div>
@@ -477,9 +539,11 @@
 (function(){
   "use strict";
   const KEY="papan-proyek-v1";
-  const CURRENT_VERSION=2;
+  const CURRENT_VERSION=4;
   const SVGNS="http://www.w3.org/2000/svg";
   const COLORS=["#fde68a","#bbf7d0","#bae6fd","#fbcfe8","#ddd6fe","#fed7aa","#a7f3d0","#fecaca"];
+  const MAX_IMAGE_SIDE=1600;
+  const MAX_IMAGE_DATA_LENGTH=1250000;
 
   const board=document.getElementById("board");
   const world=document.getElementById("world");
@@ -490,17 +554,37 @@
   const linkStyle=document.getElementById("linkStyle");
   const statusEl=document.getElementById("status");
   const statusTxt=document.getElementById("statusTxt");
+  const prevBoardBtn=document.getElementById("prevBoard");
+  const nextBoardBtn=document.getElementById("nextBoard");
+  const addBoardBtn=document.getElementById("addBoard");
+  const boardLabel=document.getElementById("boardLabel");
+  const addImageBtn=document.getElementById("addImage");
+  const imageInput=document.getElementById("imageInput");
+  const imageResizeOverlay=document.getElementById("imageResizeOverlay");
 
   let loadHadError=false;
   const loadedState=load();
-  let state=migrate(loadedState||seed());
+  let workspace=migrate(loadedState||seedWorkspace());
+  let state=getActiveBoard();
   let selectedLink=null;
+  let selectedNoteImage=null;
+  let imageResizeState=null;
+  let flashTimer=null;
+  let storageMemoryOnly=loadHadError;
+  let storageStatusMessage=loadHadError
+    ?"Gagal baca penyimpanan — jangan reset, pakai Import/Export"
+    :"Tersimpan otomatis";
   const els=new Map();
+
+  function isSafeImageSrc(src){
+    return typeof src==="string" && src.length<=MAX_IMAGE_DATA_LENGTH &&
+      /^data:image\/(?:png|jpeg|webp|gif|bmp);base64,[a-z0-9+/=\r\n]+$/i.test(src);
+  }
 
   function sanitizeHTML(html){
     if(!html) return "";
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const allowedTags = ['B', 'I', 'U', 'STRIKE', 'SPAN', 'STRONG', 'EM', 'BR', 'DIV', 'P', 'UL', 'OL', 'LI'];
+    const allowedTags = ['B', 'I', 'U', 'STRIKE', 'SPAN', 'STRONG', 'EM', 'BR', 'DIV', 'P', 'UL', 'OL', 'LI', 'IMG'];
     function clean(node) {
       const children = Array.from(node.childNodes);
       for (let child of children) {
@@ -509,6 +593,21 @@
             const parent = child.parentNode;
             while (child.firstChild) parent.insertBefore(child.firstChild, child);
             parent.removeChild(child);
+          } else if(child.nodeName === "IMG"){
+            const src=child.getAttribute("src")||"";
+            if(!isSafeImageSrc(src)){
+              child.remove();
+              continue;
+            }
+            const alt=(child.getAttribute("alt")||"Gambar").slice(0,160);
+            const widthValue=Number(child.getAttribute("width"));
+            Array.from(child.attributes).forEach(attr=>child.removeAttribute(attr.name));
+            child.setAttribute("src",src);
+            child.setAttribute("alt",alt);
+            child.setAttribute("draggable","false");
+            if(Number.isFinite(widthValue)&&widthValue>=40&&widthValue<=2000){
+              child.setAttribute("width",String(Math.round(widthValue)));
+            }
           } else {
             const attrs = Array.from(child.attributes);
             for (let attr of attrs) {
@@ -877,8 +976,10 @@
       return null;
     }
   }
-  function migrate(data){
-    const next=data&&typeof data==="object"?data:seed();
+  function normalizeBoard(boardState,fallbackName){
+    const next=boardState&&typeof boardState==="object"?boardState:{};
+    if(!next.id) next.id=uid();
+    if(typeof next.name!=="string"||!next.name.trim()) next.name=fallbackName||"Papan";
     if(!next.pan||typeof next.pan!=="object") next.pan={x:0,y:0};
     if(!Number.isFinite(next.pan.x)) next.pan.x=0;
     if(!Number.isFinite(next.pan.y)) next.pan.y=0;
@@ -887,7 +988,14 @@
     if(!Array.isArray(next.links)) next.links=[];
     if(typeof next.locked!=="boolean") next.locked=false;
     if(typeof next.blurred!=="boolean") next.blurred=false;
-    next.cards.forEach(card=>{
+    next.cards=next.cards.filter(card=>{
+      if(!card||typeof card!=="object") return false;
+      if(card.type==="image"){
+        if(!isSafeImageSrc(card.src)) return false;
+        if(typeof card.name!=="string"||!card.name.trim()) card.name="Gambar";
+        card.w=Number.isFinite(card.w)?Math.max(160,Math.min(1200,card.w)):320;
+        card.h=Number.isFinite(card.h)?Math.max(150,Math.min(1000,card.h)):246;
+      }
       if(card&&card.type==="reminder"){
         if(!Array.isArray(card.items)) card.items=[];
         card.items.forEach(item=>{
@@ -900,18 +1008,52 @@
           }
         });
       }
+      return true;
+    });
+    next.links.forEach(link=>{
+      if(link&&typeof link==="object"&&!link.style) link.style="straight";
     });
     next.v=CURRENT_VERSION;
     return next;
   }
+  function migrate(data){
+    if(data&&typeof data==="object"&&Array.isArray(data.boards)){
+      const next={
+        v:CURRENT_VERSION,
+        boards:data.boards.map((b,idx)=>normalizeBoard(b,`Papan ${idx+1}`)),
+        activeBoardId:typeof data.activeBoardId==="string"?data.activeBoardId:""
+      };
+      const seenIds=new Set();
+      next.boards.forEach(boardState=>{
+        while(seenIds.has(boardState.id)) boardState.id=uid();
+        seenIds.add(boardState.id);
+      });
+      if(!next.boards.length) next.boards.push(createEmptyBoard("Papan 1"));
+      if(!next.boards.some(b=>b.id===next.activeBoardId)) next.activeBoardId=next.boards[0].id;
+      return next;
+    }
+    if(data&&typeof data==="object"&&Array.isArray(data.cards)){
+      const legacyBoard=normalizeBoard(data,"Papan 1");
+      return {v:CURRENT_VERSION,boards:[legacyBoard],activeBoardId:legacyBoard.id};
+    }
+    return seedWorkspace();
+  }
+  function renderStorageStatus(){
+    statusEl.classList.toggle("mem",storageMemoryOnly);
+    statusTxt.textContent=storageStatusMessage;
+  }
   let saveTimer=null;
   function persistNow(){
     try{
-      localStorage.setItem(KEY,JSON.stringify(state));
-      statusEl.classList.remove("mem"); statusTxt.textContent="Tersimpan otomatis";
+      localStorage.setItem(KEY,JSON.stringify(workspace));
+      storageMemoryOnly=false;
+      storageStatusMessage="Tersimpan otomatis";
+      if(!flashTimer) renderStorageStatus();
       return true;
     }catch(e){
-      statusEl.classList.add("mem"); statusTxt.textContent="Sesi ini saja — pakai Export untuk simpan";
+      storageMemoryOnly=true;
+      storageStatusMessage="Sesi ini saja — pakai Export untuk simpan";
+      if(!flashTimer) renderStorageStatus();
       return false;
     }
   }
@@ -930,9 +1072,24 @@
     }
   }
   function uid(){ return "c"+Math.random().toString(36).slice(2,9); }
+  function createEmptyBoard(name){
+    return {
+      id:uid(),
+      name:name||"Papan baru",
+      pan:{x:120,y:90},
+      zoom:1,
+      cards:[],
+      links:[],
+      locked:false,
+      blurred:false,
+      v:CURRENT_VERSION
+    };
+  }
   function seed(){
     const n1=uid(), t1=uid(), n2=uid();
     return {
+      id:uid(),
+      name:"Papan 1",
       pan:{x:120,y:90}, zoom:1,
       cards:[
         {id:n1,type:"note",x:80,y:60,color:"#fde68a",text:"Selamat datang 👋\n\nSeret ikon ◦—◦ di bar kartu ke kartu lain untuk membuat garis penghubung."},
@@ -942,16 +1099,197 @@
           {id:uid(),text:"Export rutin biar aman",done:false}]},
         {id:n2,type:"note",x:120,y:290,color:"#bae6fd",text:"Klik garis penghubung untuk memunculkan tombol hapus."}
       ],
-      links:[{id:uid(),from:n1,to:t1}]
+      links:[{id:uid(),from:n1,to:t1,style:"straight"}],
+      locked:false,
+      blurred:false,
+      v:CURRENT_VERSION
     };
+  }
+  function seedWorkspace(){
+    const first=seed();
+    return {v:CURRENT_VERSION,boards:[first],activeBoardId:first.id};
+  }
+  function getActiveBoardIndex(){
+    if(!workspace||!Array.isArray(workspace.boards)) return 0;
+    const idx=workspace.boards.findIndex(b=>b.id===workspace.activeBoardId);
+    return idx>=0?idx:0;
+  }
+  function getActiveBoard(){
+    if(!workspace||!Array.isArray(workspace.boards)) workspace=seedWorkspace();
+    if(!workspace.boards.length) workspace.boards.push(createEmptyBoard("Papan 1"));
+    const idx=getActiveBoardIndex();
+    workspace.activeBoardId=workspace.boards[idx].id;
+    return workspace.boards[idx];
+  }
+  function updateBoardSwitcher(){
+    if(!boardLabel) return;
+    const total=workspace.boards.length;
+    const idx=getActiveBoardIndex();
+    const active=workspace.boards[idx]||state;
+    const title=(active&&active.name)||`Papan ${idx+1}`;
+    boardLabel.textContent=`${idx+1}/${total}`;
+    boardLabel.title=`Board aktif: ${title}`;
+    if(prevBoardBtn) prevBoardBtn.disabled=total<=1||idx<=0;
+    if(nextBoardBtn) nextBoardBtn.disabled=total<=1||idx>=total-1;
+  }
+  function setActiveBoardIndex(index){
+    if(!workspace.boards.length) return;
+    if(index<0||index>=workspace.boards.length) return;
+    if(workspace.boards[index].id===workspace.activeBoardId) return;
+    flushSave();
+    workspace.activeBoardId=workspace.boards[index].id;
+    state=workspace.boards[index];
+    selectedLink=null;
+    hideLinkDel();
+    renderAll();
+    save();
+    flashStatus(`Berpindah ke ${state.name} 🧭`);
+  }
+  function addBoard(){
+    flushSave();
+    const next=createEmptyBoard(`Papan ${workspace.boards.length+1}`);
+    workspace.boards.push(next);
+    workspace.activeBoardId=next.id;
+    state=next;
+    selectedLink=null;
+    hideLinkDel();
+    renderAll();
+    save();
+    flashStatus(`${next.name} ditambahkan`);
   }
 
   /* ---------- Transform dunia ---------- */
+  function hideImageResizeOverlay(){
+    if(selectedNoteImage) selectedNoteImage.classList.remove("note-image-selected");
+    selectedNoteImage=null;
+    imageResizeState=null;
+    if(imageResizeOverlay) imageResizeOverlay.style.display="none";
+  }
+  function positionImageResizeOverlay(){
+    if(!selectedNoteImage||!selectedNoteImage.isConnected||!imageResizeOverlay){
+      hideImageResizeOverlay();
+      return;
+    }
+    const rect=selectedNoteImage.getBoundingClientRect();
+    const boardRect=board.getBoundingClientRect();
+    if(rect.width<1||rect.height<1){
+      hideImageResizeOverlay();
+      return;
+    }
+    imageResizeOverlay.style.left=(rect.left-boardRect.left)+"px";
+    imageResizeOverlay.style.top=(rect.top-boardRect.top)+"px";
+    imageResizeOverlay.style.width=rect.width+"px";
+    imageResizeOverlay.style.height=rect.height+"px";
+    imageResizeOverlay.style.display="block";
+  }
+  function selectNoteImage(img){
+    if(!img||!img.isConnected) return;
+    if(selectedNoteImage&&selectedNoteImage!==img){
+      selectedNoteImage.classList.remove("note-image-selected");
+    }
+    selectedNoteImage=img;
+    selectedNoteImage.classList.add("note-image-selected");
+    positionImageResizeOverlay();
+  }
+  function bindNoteImage(img){
+    if(!img||img.dataset.imageResizeBound==="1") return;
+    img.dataset.imageResizeBound="1";
+    img.addEventListener("pointerdown",e=>{
+      e.stopPropagation();
+      e.preventDefault();
+      selectNoteImage(img);
+    });
+    img.addEventListener("mousedown",e=>{
+      e.stopPropagation();
+      e.preventDefault();
+      selectNoteImage(img);
+    });
+    img.addEventListener("click",e=>{
+      e.stopPropagation();
+      selectNoteImage(img);
+    });
+  }
+  function bindNoteImages(body){
+    if(!body) return;
+    body.querySelectorAll("img").forEach(bindNoteImage);
+  }
+  function readImageLogicalWidth(img){
+    const declared=Number(img.getAttribute("width"));
+    if(Number.isFinite(declared)&&declared>0) return declared;
+    const zoom=Number.isFinite(state.zoom)&&state.zoom>0?state.zoom:1;
+    return Math.max(40,img.getBoundingClientRect().width/zoom);
+  }
+  function imageResizeWidth(dir,dx,dy,startWidth,ratio){
+    const zoom=Number.isFinite(state.zoom)&&state.zoom>0?state.zoom:1;
+    const horizontal=dir.includes("r")?dx:(dir.includes("l")?-dx:null);
+    const vertical=dir.includes("b")?dy:(dir.includes("t")?-dy:null);
+    const candidates=[];
+    if(horizontal!==null) candidates.push(horizontal/zoom);
+    if(vertical!==null) candidates.push((vertical/zoom)*ratio);
+    candidates.sort((a,b)=>Math.abs(b)-Math.abs(a));
+    const delta=candidates[0]||0;
+    return Math.max(40,Math.min(1200,startWidth+delta));
+  }
+  function fitNoteCardToImage(img,logicalWidth){
+    const cardEl=img&&img.closest?img.closest(".card"):null;
+    if(!cardEl||!cardEl.dataset.id) return;
+    const card=state.cards.find(item=>item&&item.id===cardEl.dataset.id);
+    if(!card) return;
+    const body=img.closest(".note-body");
+    const style=body?getComputedStyle(body):null;
+    const padding=(style?parseFloat(style.paddingLeft):0)+(style?parseFloat(style.paddingRight):0);
+    const desired=Math.min(1200,Math.ceil(logicalWidth+padding+4));
+    if(desired>cardEl.offsetWidth){
+      card.w=desired;
+      cardEl.style.width=desired+"px";
+    }
+  }
+  function startImageResize(e,dir){
+    if(e.button!==0||!selectedNoteImage) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const img=selectedNoteImage;
+    const naturalW=img.naturalWidth||1;
+    const naturalH=img.naturalHeight||1;
+    const ratio=naturalH/naturalW;
+    const startWidth=readImageLogicalWidth(img);
+    const handle=e.currentTarget;
+    imageResizeState={img,dir,startX:e.clientX,startY:e.clientY,startWidth,ratio,pointerId:e.pointerId};
+    if(handle.setPointerCapture) handle.setPointerCapture(e.pointerId);
+    function move(ev){
+      if(!imageResizeState||imageResizeState.img!==img||ev.pointerId!==imageResizeState.pointerId) return;
+      const nextWidth=imageResizeWidth(dir,ev.clientX-e.clientX,ev.clientY-e.clientY,startWidth,ratio);
+      img.setAttribute("width",String(Math.round(nextWidth)));
+      fitNoteCardToImage(img,nextWidth);
+      positionImageResizeOverlay();
+      redrawLinks();
+    }
+    function finish(ev){
+      if(ev&&(!imageResizeState||ev.pointerId!==imageResizeState.pointerId)) return;
+      if(handle.releasePointerCapture){
+        try{ handle.releasePointerCapture(e.pointerId); }catch(err){}
+      }
+      document.removeEventListener("pointermove",move);
+      document.removeEventListener("pointerup",finish);
+      document.removeEventListener("pointercancel",finish);
+      if(imageResizeState&&imageResizeState.img===img){
+        imageResizeState=null;
+        const body=img.closest(".note-body");
+        if(body) body.dispatchEvent(new Event("input",{bubbles:true}));
+        save();
+        positionImageResizeOverlay();
+      }
+    }
+    document.addEventListener("pointermove",move);
+    document.addEventListener("pointerup",finish);
+    document.addEventListener("pointercancel",finish);
+  }
   function applyWorld(){
     world.style.transform=`translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
     board.style.backgroundPosition=`${state.pan.x}px ${state.pan.y}px`;
     board.style.backgroundSize=`${26*state.zoom}px ${26*state.zoom}px`;
     redrawLinks();
+    positionImageResizeOverlay();
   }
   function screenToWorld(cx,cy){ return {x:(cx-state.pan.x)/state.zoom, y:(cy-state.pan.y)/state.zoom}; }
 
@@ -1092,7 +1430,7 @@
       btn.title="Sensor papan (Hide Board)";
     }
   }
-  function renderAll(){ world.innerHTML=""; els.clear(); state.cards.forEach(makeCard); applyWorld(); updateLockState(); updateBlurState(); }
+  function renderAll(){ world.innerHTML=""; els.clear(); state.cards.forEach(makeCard); applyWorld(); updateLockState(); updateBlurState(); updateBoardSwitcher(); }
 
   function makeCard(card){
     const el=document.createElement("div");
@@ -1104,10 +1442,15 @@
       el.style.background=card.color||COLORS[0];
     }
     const head=document.createElement("div"); head.className="card-head";
-    if(card.type==="todo" || card.type==="reminder"){
+    if(card.type==="todo" || card.type==="reminder" || card.type==="image"){
       const title=document.createElement("div"); title.className="card-title";
-      title.contentEditable="true"; title.spellcheck=false; title.textContent=card.title||(card.type==="todo"?"To-do":"Pengingat");
-      title.addEventListener("input",()=>{ card.title=title.textContent; save(); redrawLinks(); });
+      title.contentEditable="true"; title.spellcheck=false;
+      title.textContent=card.type==="image"?(card.name||"Gambar"):(card.title||(card.type==="todo"?"To-do":"Pengingat"));
+      title.addEventListener("input",()=>{
+        if(card.type==="image") card.name=title.textContent;
+        else card.title=title.textContent;
+        save(); redrawLinks();
+      });
       title.addEventListener("pointerdown",e=>{ e.stopPropagation(); title.focus(); });
       title.addEventListener("mousedown",e=>{ e.stopPropagation(); title.focus(); });
       title.addEventListener("click",e=>{ e.stopPropagation(); title.focus(); });
@@ -1139,10 +1482,22 @@
     if(card.type==="note"){
       const body=document.createElement("div"); body.className="note-body";
       body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
+      bindNoteImages(body);
       body.addEventListener("input",()=>{ card.text=sanitizeHTML(body.innerHTML); save(); redrawLinks(); });
-      body.addEventListener("pointerdown",e=>{ e.stopPropagation(); body.focus(); });
+      body.addEventListener("pointerdown",e=>{
+        e.stopPropagation();
+        if(!e.target.closest("img")) hideImageResizeOverlay();
+        body.focus();
+      });
       body.addEventListener("mousedown",e=>{ e.stopPropagation(); body.focus(); });
       body.addEventListener("click",e=>{ e.stopPropagation(); body.focus(); });
+      body.addEventListener("paste",e=>{
+        const file=getClipboardImageFile(e.clipboardData);
+        if(!file) return;
+        e.preventDefault();
+        const range=captureRangeWithin(body);
+        addImageFileToNote(file,body,range);
+      });
       body.addEventListener("keydown", e => {
         if(e.key === " "){
           const sel = window.getSelection();
@@ -1187,6 +1542,11 @@
         }
       });
       el.appendChild(body);
+    }else if(card.type==="image"){
+      const body=document.createElement("div"); body.className="image-body";
+      const img=document.createElement("img"); img.className="board-image";
+      img.src=card.src; img.alt=card.name||"Gambar"; img.draggable=false;
+      body.appendChild(img); el.appendChild(body);
     }else if(card.type==="todo"){
       const body=document.createElement("div"); body.className="todo-body";
       card.items=card.items||[];
@@ -1217,6 +1577,7 @@
       "archive": 4
     };
     card.items.sort((a, b) => {
+      if(Boolean(a.done)!==Boolean(b.done)) return a.done?1:-1;
       const wA = weights[a.priority] || 2;
       const wB = weights[b.priority] || 2;
       return wA - wB;
@@ -1253,7 +1614,12 @@
     const row=document.createElement("div"); row.className="todo-item"+(item.done?" done":"");
     const chk=document.createElement("div"); chk.className="chk";
     chk.addEventListener("pointerdown",e=>e.stopPropagation());
-    chk.addEventListener("click",()=>{ item.done=!item.done; row.classList.toggle("done",item.done); save(); });
+    chk.addEventListener("click",()=>{
+      item.done=!item.done;
+      renderTodoList(card,body,item.id);
+      save();
+      redrawLinks();
+    });
     
     const dot=document.createElement("div");
     const pVal=item.priority||"medium";
@@ -1667,6 +2033,7 @@
   board.addEventListener("pointerdown",(e)=>{
     if(state.locked) return;
     if(e.target!==board&&e.target!==world) return;
+    hideImageResizeOverlay();
     hideLinkDel(); redrawLinks();
     if(e.button!==0) return;
     board.classList.add("panning");
@@ -1703,6 +2070,162 @@
   window.addEventListener("resize",redrawLinks);
 
   /* ---------- Aksi ---------- */
+  function isSupportedImageFile(file){
+    return file instanceof Blob && /^image\/(?:png|jpeg|webp|gif|bmp)$/i.test(file.type||"");
+  }
+  function readFileAsDataURL(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||""));
+      reader.onerror=()=>reject(new Error("File gambar tidak dapat dibaca."));
+      reader.readAsDataURL(file);
+    });
+  }
+  function loadImageElement(src){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(img);
+      img.onerror=()=>reject(new Error("Format gambar tidak dapat dibuka."));
+      img.src=src;
+    });
+  }
+  async function prepareImageFile(file){
+    if(!isSupportedImageFile(file)) throw new Error("Gunakan PNG, JPG, WebP, GIF, atau BMP. SVG tidak didukung.");
+    const raw=await readFileAsDataURL(file);
+    const source=await loadImageElement(raw);
+    if(!source.naturalWidth||!source.naturalHeight) throw new Error("Ukuran gambar tidak valid.");
+
+    const longest=Math.max(source.naturalWidth,source.naturalHeight);
+    const sideSteps=[MAX_IMAGE_SIDE,1280,1024,800,640];
+    const qualitySteps=[0.82,0.74,0.66,0.58,0.5];
+    let lastResult=null;
+    for(let i=0;i<sideSteps.length;i++){
+      const scale=Math.min(1,sideSteps[i]/longest);
+      const width=Math.max(1,Math.round(source.naturalWidth*scale));
+      const height=Math.max(1,Math.round(source.naturalHeight*scale));
+      const canvas=document.createElement("canvas");
+      canvas.width=width; canvas.height=height;
+      const ctx=canvas.getContext("2d",{alpha:true});
+      if(!ctx) throw new Error("Browser tidak mendukung pemrosesan gambar.");
+      ctx.drawImage(source,0,0,width,height);
+      const src=canvas.toDataURL("image/webp",qualitySteps[i]);
+      lastResult={src,width,height};
+      if(isSafeImageSrc(src)&&src.length<=MAX_IMAGE_DATA_LENGTH) return lastResult;
+    }
+    if(lastResult&&isSafeImageSrc(lastResult.src)&&lastResult.src.length<=MAX_IMAGE_DATA_LENGTH) return lastResult;
+    throw new Error("Gambar masih terlalu besar setelah dikompresi. Gunakan gambar yang lebih kecil.");
+  }
+  function getClipboardImageFile(clipboardData){
+    if(!clipboardData) return null;
+    const items=Array.from(clipboardData.items||[]);
+    for(const item of items){
+      if(item.kind==="file"&&/^image\//i.test(item.type||"")){
+        const file=item.getAsFile();
+        if(file&&isSupportedImageFile(file)) return file;
+      }
+    }
+    return Array.from(clipboardData.files||[]).find(isSupportedImageFile)||null;
+  }
+  function captureRangeWithin(body){
+    if(!body||!body.isConnected) return null;
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount) return null;
+    const range=sel.getRangeAt(0);
+    const root=range.commonAncestorContainer.nodeType===Node.ELEMENT_NODE
+      ?range.commonAncestorContainer:range.commonAncestorContainer.parentElement;
+    return root&&(root===body||body.contains(root))?range.cloneRange():null;
+  }
+  function insertImageIntoNote(body,prepared,name,savedRange){
+    if(!body||!body.isConnected||!isSafeImageSrc(prepared.src)) return false;
+    const img=document.createElement("img");
+    img.src=prepared.src; img.alt=(name||"Gambar").slice(0,160); img.draggable=false;
+    const br=document.createElement("br");
+    body.focus();
+
+    let range=savedRange;
+    if(!range||!range.commonAncestorContainer||!body.contains(range.commonAncestorContainer)){
+      range=captureRangeWithin(body);
+    }
+    if(!range){
+      range=document.createRange();
+      range.selectNodeContents(body);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    range.insertNode(img);
+    img.after(br);
+    range.setStartAfter(br); range.collapse(true);
+    const sel=window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+    bindNoteImage(img);
+    body.dispatchEvent(new Event("input",{bubbles:true}));
+    return true;
+  }
+  function imageCardSize(width,height){
+    const scale=Math.min(1,360/width,300/height);
+    return {
+      w:Math.max(180,Math.round(width*scale)),
+      h:Math.max(150,Math.round(height*scale)+26)
+    };
+  }
+  function imageName(file,index){
+    const raw=file&&typeof file.name==="string"?file.name.replace(/\.[^.]+$/,"").trim():"";
+    return (raw||`Gambar ${index+1}`).slice(0,80);
+  }
+  function addPreparedImageToBoard(prepared,name,offset){
+    const size=imageCardSize(prepared.width,prepared.height);
+    const center=screenToWorld(board.clientWidth/2,board.clientHeight/2);
+    const autoOffset=offset===undefined
+      ?(state.cards.filter(card=>card&&card.type==="image").length%8)*24
+      :offset;
+    const card={
+      id:uid(),type:"image",
+      x:Math.round(center.x-size.w/2+autoOffset),
+      y:Math.round(center.y-size.h/2+autoOffset),
+      w:size.w,h:size.h,src:prepared.src,name:name||"Gambar"
+    };
+    state.cards.push(card);
+    makeCard(card); save(); redrawLinks();
+  }
+  async function addImageFileToNote(file,body,range){
+    try{
+      flashStatus("Memproses gambar…",true);
+      const prepared=await prepareImageFile(file);
+      if(!insertImageIntoNote(body,prepared,imageName(file,0),range)){
+        addPreparedImageToBoard(prepared,imageName(file,0));
+      }
+      flashStatus("Gambar ditambahkan",false);
+    }catch(err){
+      alert(err&&err.message?err.message:"Gambar gagal diproses.");
+    }
+  }
+  async function processImageFiles(files,target){
+    const list=Array.from(files||[]).filter(isSupportedImageFile);
+    if(!list.length){
+      alert("Pilih file PNG, JPG, WebP, GIF, atau BMP.");
+      return;
+    }
+    let range=target&&target.range;
+    const failures=[];
+    flashStatus("Memproses gambar…",true);
+    for(let i=0;i<list.length;i++){
+      const file=list[i];
+      try{
+        const prepared=await prepareImageFile(file);
+        if(target&&target.body&&target.body.isConnected){
+          insertImageIntoNote(target.body,prepared,imageName(file,i),range);
+          range=null;
+        }else{
+          addPreparedImageToBoard(prepared,imageName(file,i));
+        }
+      }catch(err){
+        failures.push(`${file.name||`Gambar ${i+1}`}: ${err&&err.message?err.message:"gagal"}`);
+      }
+    }
+    if(failures.length) alert(`Sebagian gambar gagal:\n\n${failures.join("\n")}`);
+    if(failures.length<list.length) flashStatus("Gambar ditambahkan — Export rutin agar aman",false);
+  }
+
   function addNote(x,y){
     if(x===undefined){ const c=screenToWorld(board.clientWidth/2,board.clientHeight/2); x=c.x-110; y=c.y-60; }
     const card={id:uid(),type:"note",x:Math.round(x),y:Math.round(y),color:COLORS[Math.floor(Math.random()*COLORS.length)],text:""};
@@ -1721,13 +2244,12 @@
     if(addBtn) addBtn.click();
   }
   function flashStatus(msg,isAmber){
-    const oldText=statusTxt.textContent;
-    const oldMem=statusEl.classList.contains("mem");
+    if(flashTimer) clearTimeout(flashTimer);
     statusTxt.textContent=msg;
     if(isAmber) statusEl.classList.add("mem"); else statusEl.classList.remove("mem");
-    setTimeout(()=>{
-      statusTxt.textContent=oldText;
-      if(oldMem) statusEl.classList.add("mem"); else statusEl.classList.remove("mem");
+    flashTimer=setTimeout(()=>{
+      flashTimer=null;
+      renderStorageStatus();
     },3500);
   }
   function copyToClipboard(text){
@@ -1755,8 +2277,35 @@
   document.getElementById("addNote").addEventListener("click",()=>addNote());
   document.getElementById("addTodo").addEventListener("click",addTodo);
   document.getElementById("addReminder").addEventListener("click",addReminder);
+  let pendingImageTarget=null;
+  addImageBtn.addEventListener("pointerdown",e=>{
+    e.stopPropagation();
+    const active=document.activeElement;
+    const body=active&&active.closest?active.closest(".note-body"):null;
+    pendingImageTarget=body?{body,range:captureRangeWithin(body)}:null;
+  });
+  addImageBtn.addEventListener("click",()=>imageInput.click());
+  imageInput.addEventListener("change",async e=>{
+    const files=Array.from(e.target.files||[]);
+    const target=pendingImageTarget;
+    pendingImageTarget=null;
+    e.target.value="";
+    await processImageFiles(files,target);
+  });
+  document.addEventListener("paste",e=>{
+    if(e.defaultPrevented) return;
+    const target=e.target&&e.target.closest?e.target:null;
+    if(target&&target.closest(".note-body,.todo-text,.card-title,input,textarea,[contenteditable='true']")) return;
+    const file=getClipboardImageFile(e.clipboardData);
+    if(!file) return;
+    e.preventDefault();
+    processImageFiles([file],null);
+  });
+  prevBoardBtn.addEventListener("click",()=>setActiveBoardIndex(getActiveBoardIndex()-1));
+  nextBoardBtn.addEventListener("click",()=>setActiveBoardIndex(getActiveBoardIndex()+1));
+  addBoardBtn.addEventListener("click",addBoard);
   document.getElementById("exportBtn").addEventListener("click",()=>{
-    const jsonStr=JSON.stringify(state,null,2);
+    const jsonStr=JSON.stringify(workspace,null,2);
     copyToClipboard(jsonStr);
     try{
       const blob=new Blob([jsonStr],{type:"application/json"});
@@ -1772,16 +2321,21 @@
     const f=e.target.files[0]; if(!f) return; const r=new FileReader();
     r.onload=()=>{ try{
       const data=JSON.parse(r.result);
-      if(!data||!Array.isArray(data.cards)) throw 0;
-      state=migrate(data);
+      if(!data||(!Array.isArray(data.cards)&&!Array.isArray(data.boards))) throw 0;
+      workspace=migrate(data);
+      state=getActiveBoard();
       selectedLink=null; hideLinkDel(); renderAll(); save();
       flashStatus("Data berhasil di-import! 📥");
     }catch(err){ alert("File tidak valid — pastikan hasil Export dari papan ini."); } };
     r.readAsText(f); e.target.value="";
   });
   document.getElementById("resetBtn").addEventListener("click",()=>{
-    if(confirm("Kosongkan seluruh papan? Export dulu kalau mau simpan.")){
-      state=migrate({pan:{x:120,y:90},zoom:1,cards:[],links:[],locked:false,blurred:false}); selectedLink=null; hideLinkDel(); renderAll(); save();
+    if(confirm("Kosongkan board aktif saja? Board lain tetap aman. Export dulu kalau mau simpan.")){
+      const keepName=state.name;
+      const keepId=state.id;
+      Object.assign(state,createEmptyBoard(keepName));
+      state.id=keepId;
+      selectedLink=null; hideLinkDel(); renderAll(); save();
     }
   });
 
@@ -1845,13 +2399,20 @@
     }
   });
 
+  if(imageResizeOverlay){
+    imageResizeOverlay.querySelectorAll("[data-image-resize]").forEach(handle=>{
+      handle.addEventListener("pointerdown",e=>{
+        startImageResize(e,handle.dataset.imageResize);
+      });
+    });
+  }
+
   window.addEventListener("pagehide",flushSave);
   window.addEventListener("beforeunload",flushSave);
 
   renderAll();
   if(loadHadError){
-    statusEl.classList.add("mem");
-    statusTxt.textContent="Gagal baca penyimpanan — jangan reset, pakai Import/Export";
+    renderStorageStatus();
   }else{
     save();
   }

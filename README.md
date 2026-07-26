@@ -21,7 +21,7 @@ The application operates in **two distinct runtime environments**:
 
 ## 2. Hard Architectural Constraints
 
-1. **Single File Deliverable**: The entire application lives inside [index.html](file:///c:/000%20DATA%20RZ/WEB%20DEVELOPMENT%20RZ/MY%20PROJECT/dekstop%20map%20project/index.html). No external CSS, no external JS scripts, no external fonts, and no CDN calls.
+1. **Single File Deliverable**: The entire application lives inside `index.html`. No external CSS, no external JS scripts, no external fonts, and no CDN calls.
 2. **Offline-First / Zero Network**: Must open and run perfectly via `file:///` protocol without any internet connection.
 3. **CEF Click-Propagation Safeguard**: All interactive elements (inputs, contenteditable divs, checkboxes, custom dropdowns) must implement `.addEventListener("pointerdown", e => e.stopPropagation())` to prevent the parent card drag routine or board pan routine from swallowing clicks.
 4. **UI Language**: Bahasa Indonesia. Code variables, comments, and commit messages: English.
@@ -31,14 +31,31 @@ The application operates in **two distinct runtime environments**:
 
 ## 3. Data Schema & Persistence
 
-State is saved to `localStorage` under the key `papan-proyek-v1`. If the schema changes, use a migration step on startup rather than changing the storage key.
+Workspace state is saved to `localStorage` under the key `papan-proyek-v1`. The key stays the same for backward compatibility; schema evolution is handled by `migrate()` on startup/import.
+
+- Current schema version: `v: 4`.
+- Legacy exports with root-level `cards`, `links`, `pan`, and `zoom` are migrated into one board.
+- Export/Import now includes all boards in the workspace.
+- `Reset` clears only the active board, not the entire workspace.
+- Each board owns its own `pan`, `zoom`, cards, links, lock state, and blur state. Switching boards must never reuse another board's viewport transform.
 
 ```typescript
+interface WorkspaceState {
+  v: 4;
+  activeBoardId: string;
+  boards: BoardState[];
+}
+
 interface BoardState {
+  id: string;
+  name: string;
+  v?: number;
   pan: { x: number; y: number };
   zoom: number; // Clamped strictly between 0.35 and 2.4
-  cards: Array<NoteCard | TodoCard | ReminderCard>;
-  links: Array<{ id: string; from: string; to: string }>;
+  locked: boolean;
+  blurred: boolean;
+  cards: Array<NoteCard | TodoCard | ReminderCard | ImageCard>;
+  links: Array<{ id: string; from: string; to: string; style?: "straight" | "elbow" }>;
 }
 
 interface NoteCard {
@@ -83,9 +100,21 @@ interface ReminderCard {
     category: "Langganan" | "Jadwal" | "Umum";
     recurrence: "none" | "daily" | "weekly" | "monthly";
     recurDays: number[]; // Array of weekday index (0=Sunday, ..., 6=Saturday)
+    recurDay?: number;   // Monthly anchor day (1-31), clamped to the last day of shorter months
     datetime: string;    // ISO-8601 string (e.g. YYYY-MM-DDTHH:MM)
     done: boolean;
   }>;
+}
+
+interface ImageCard {
+  id: string;
+  type: "image";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  name: string;
+  src: string; // Sanitized offline data URL: PNG, JPEG, WebP, GIF, or BMP
 }
 ```
 
@@ -119,11 +148,26 @@ Replaces `<input type="datetime-local">` with an interactive, dark-themed calend
 - Allows jumping months and typing hour/minute values.
 - Triggers custom `onApply` callback once saved.
 
-### C. To-Do Item Priority Dot
-- Positioned inside each todo list row.
-- Cycles priority colors on click: Red (`urgent`) $\rightarrow$ Green (`medium`) $\rightarrow$ Blue (`low`) $\rightarrow$ Gray (`archive`) $\rightarrow$ Red (`urgent`), and automatically sorts items.
+### C. Board Switcher
+Provides mouse-only controls for multiple local boards:
+- Previous board (`‹`) and next board (`›`) switch the active board.
+- `+ Papan` appends a blank board and switches to it.
+- The active board label shows only its position, for example `1/2`.
+- Board switching must call `renderAll()` after updating `activeBoardId`, so each board restores its own pan/zoom and card positions.
 
-### D. Automated Markdown Lists
+### D. Offline Images
+- Clicking `Gambar` inserts uploads into the currently focused note; without an active note it creates a separate image card on the board.
+- Pasting an image inside a note inserts it inline. Pasting while no editable field is active creates an image card.
+- Click an inline note image to reveal four corner handles, then drag a corner to resize it while keeping its aspect ratio. The width is persisted with the note.
+- Images are downscaled and converted locally before storage. SVG is rejected because it can contain active or external content.
+- Images still increase the JSON and `localStorage` size. Automatic storage remains best-effort; regular Export backups are mandatory.
+
+### E. To-Do Item Priority Dot
+- Positioned inside each todo list row.
+- Opens a mouse-only popover for direct priority selection: Red (`urgent`), Green (`medium`), Blue (`low`), or Gray (`archive`), then automatically sorts items.
+- Completed items are automatically moved below active items and remain crossed out.
+
+### F. Automated Markdown Lists
 - When typing inside a note card's body, the keydown handler automatically detects:
   - `- ` or `* ` followed by space $\rightarrow$ Converts block to a Bullet List (`<ul>`).
   - `1. ` followed by space $\rightarrow$ Converts block to a Numbered List (`<ol>`).
