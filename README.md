@@ -33,7 +33,7 @@ The application operates in **two distinct runtime environments**:
 
 Workspace state is saved to `localStorage` under the key `papan-proyek-v1`. The key stays the same for backward compatibility; schema evolution is handled by `migrate()` on startup/import.
 
-- Current schema version: `v: 4`.
+- Current schema version: `v: 5`.
 - Legacy exports with root-level `cards`, `links`, `pan`, and `zoom` are migrated into one board.
 - Export/Import now includes all boards in the workspace.
 - `Reset` clears only the active board, not the entire workspace.
@@ -41,7 +41,7 @@ Workspace state is saved to `localStorage` under the key `papan-proyek-v1`. The 
 
 ```typescript
 interface WorkspaceState {
-  v: 4;
+  v: 5;
   activeBoardId: string;
   boards: BoardState[];
 }
@@ -54,7 +54,7 @@ interface BoardState {
   zoom: number; // Clamped strictly between 0.35 and 2.4
   locked: boolean;
   blurred: boolean;
-  cards: Array<NoteCard | TodoCard | ReminderCard | ImageCard>;
+  cards: Array<NoteCard | TodoCard | ReminderCard | ImageCard | TextCard>;
   links: Array<{ id: string; from: string; to: string; style?: "straight" | "elbow" }>;
 }
 
@@ -116,6 +116,17 @@ interface ImageCard {
   name: string;
   src: string; // Sanitized offline data URL: PNG, JPEG, WebP, GIF, or BMP
 }
+
+interface TextCard {
+  id: string;
+  type: "text";
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  text: string;
+  fontSize: number; // Clamped between 14 and 96
+}
 ```
 
 ---
@@ -152,22 +163,28 @@ Replaces `<input type="datetime-local">` with an interactive, dark-themed calend
 Provides mouse-only controls for multiple local boards:
 - Previous board (`‹`) and next board (`›`) switch the active board.
 - `+ Papan` appends a blank board and switches to it.
+- The trash button opens an in-app confirmation and deletes the active board; the last remaining board cannot be deleted.
 - The active board label shows only its position, for example `1/2`.
 - Board switching must call `renderAll()` after updating `activeBoardId`, so each board restores its own pan/zoom and card positions.
 
-### D. Offline Images
+### D. Board Text / Section Titles
+- `Teks` creates a transparent text card that can be dragged and resized like other cards.
+- `A−` and `A+` in the card header change font size through mouse input and persist the selected size.
+- Text is rendered with `textContent`; imported markup cannot execute.
+
+### E. Offline Images
 - Clicking `Gambar` inserts uploads into the currently focused note; without an active note it creates a separate image card on the board.
 - Pasting an image inside a note inserts it inline. Pasting while no editable field is active creates an image card.
 - Click an inline note image to reveal four corner handles, then drag a corner to resize it while keeping its aspect ratio. The width is persisted with the note.
 - Images are downscaled and converted locally before storage. SVG is rejected because it can contain active or external content.
 - Images still increase the JSON and `localStorage` size. Automatic storage remains best-effort; regular Export backups are mandatory.
 
-### E. To-Do Item Priority Dot
+### F. To-Do Item Priority Dot
 - Positioned inside each todo list row.
 - Opens a mouse-only popover for direct priority selection: Red (`urgent`), Green (`medium`), Blue (`low`), or Gray (`archive`), then automatically sorts items.
 - Completed items are automatically moved below active items and remain crossed out.
 
-### F. Automated Markdown Lists
+### G. Automated Markdown Lists
 - When typing inside a note card's body, the keydown handler automatically detects:
   - `- ` or `* ` followed by space $\rightarrow$ Converts block to a Bullet List (`<ul>`).
   - `1. ` followed by space $\rightarrow$ Converts block to a Numbered List (`<ol>`).

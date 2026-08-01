@@ -95,6 +95,13 @@
     display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;
     -webkit-user-select:none;user-select:none;-webkit-user-drag:none;
   }
+  .card.text{background:transparent;box-shadow:none;color:var(--txt);min-height:80px}
+  .card.text .card-head{background:rgba(26,29,36,.72);opacity:.22;transition:opacity .12s}
+  .card.text:hover .card-head,.card.text:focus-within .card-head{opacity:1}
+  .text-card-body{flex:1;padding:8px;color:var(--txt);font-weight:700;line-height:1.15;outline:none;
+    overflow-wrap:anywhere;-webkit-user-select:text;user-select:text;cursor:text;text-shadow:0 2px 6px rgba(0,0,0,.65)}
+  .text-card-body:empty::before{content:attr(data-ph);color:var(--muted)}
+  .font-btn{width:27px;font-size:10px;font-weight:700}
 
   .todo-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;border-radius:0 0 12px 12px}
   .todo-item{display:flex;align-items:flex-start;gap:8px;padding:4px 4px;border-radius:7px}
@@ -388,6 +395,10 @@
   .board-switcher .tbtn{min-width:38px;flex:0 0 auto}
   .board-add-btn{white-space:nowrap;flex:0 0 auto}
   .board-add-btn svg{width:14px;height:14px;flex:none}
+  #boardDeleteConfirm{position:fixed;inset:0;display:none;z-index:1800;align-items:center;justify-content:center;padding:16px;background:rgba(5,7,12,.68)}
+  #boardDeleteConfirm.show{display:flex}.board-delete-panel{width:min(360px,calc(100vw - 32px));padding:16px;display:flex;gap:12px;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .delete-title{font-weight:700}.delete-copy{font-size:12px;color:var(--muted)}
+  .delete-actions{display:flex;justify-content:flex-end;gap:8px}.delete-actions .danger{background:#ef4444;color:#fff}
 
   #status{
     position:fixed;left:16px;bottom:74px;z-index:1000;font-size:11.5px;color:var(--muted);
@@ -489,6 +500,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       Catatan
     </button>
+    <button class="tbtn" id="addText" title="Tambah judul atau teks bebas"><strong>Tt</strong> Teks</button>
     <button class="tbtn" id="addTodo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       To-do
@@ -515,6 +527,9 @@
         </svg>
         <span>Papan</span>
       </button>
+      <button class="tbtn ghost" id="deleteBoard" title="Hapus papan aktif">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7"/></svg>
+      </button>
     </div>
     <div class="tsep"></div>
     <button class="tbtn ghost" id="zoomOut" title="Perkecil (Zoom Out)">
@@ -533,13 +548,19 @@
     <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple style="display:none" />
   </div>
 
+  <div id="boardDeleteConfirm" role="dialog" aria-modal="true" aria-labelledby="deleteBoardTitle"><div class="board-delete-panel">
+    <div class="delete-title" id="deleteBoardTitle">Hapus papan?</div>
+    <div class="delete-copy" id="deleteBoardCopy">Semua kartu pada papan ini akan dihapus. Export dulu jika masih dibutuhkan.</div>
+    <div class="delete-actions"><button class="tbtn ghost" id="cancelDeleteBoard">Batal</button><button class="tbtn danger" id="confirmDeleteBoard">Hapus</button></div>
+  </div></div>
+
   <div id="status"><span class="dot"></span><span id="statusTxt">Tersimpan otomatis</span></div>
 
 <script>
 (function(){
   "use strict";
   const KEY="papan-proyek-v1";
-  const CURRENT_VERSION=4;
+  const CURRENT_VERSION=5;
   const SVGNS="http://www.w3.org/2000/svg";
   const COLORS=["#fde68a","#bbf7d0","#bae6fd","#fbcfe8","#ddd6fe","#fed7aa","#a7f3d0","#fecaca"];
   const MAX_IMAGE_SIDE=1600;
@@ -557,6 +578,9 @@
   const prevBoardBtn=document.getElementById("prevBoard");
   const nextBoardBtn=document.getElementById("nextBoard");
   const addBoardBtn=document.getElementById("addBoard");
+  const deleteBoardBtn=document.getElementById("deleteBoard");
+  const boardDeletePrompt=document.getElementById("boardDeleteConfirm");
+  const boardDeleteCopy=document.getElementById("deleteBoardCopy");
   const boardLabel=document.getElementById("boardLabel");
   const addImageBtn=document.getElementById("addImage");
   const imageInput=document.getElementById("imageInput");
@@ -569,6 +593,7 @@
   let selectedLink=null;
   let selectedNoteImage=null;
   let imageResizeState=null;
+  let pendingDeleteBoardId=null;
   let flashTimer=null;
   let storageMemoryOnly=loadHadError;
   let storageStatusMessage=loadHadError
@@ -996,6 +1021,11 @@
         card.w=Number.isFinite(card.w)?Math.max(160,Math.min(1200,card.w)):320;
         card.h=Number.isFinite(card.h)?Math.max(150,Math.min(1000,card.h)):246;
       }
+      if(card.type==="text"){
+        if(typeof card.text!=="string") card.text="";
+        card.fontSize=Number.isFinite(card.fontSize)?Math.max(14,Math.min(96,card.fontSize)):36;
+        card.w=Number.isFinite(card.w)?Math.max(160,Math.min(1200,card.w)):360;
+      }
       if(card&&card.type==="reminder"){
         if(!Array.isArray(card.items)) card.items=[];
         card.items.forEach(item=>{
@@ -1131,11 +1161,13 @@
     boardLabel.title=`Board aktif: ${title}`;
     if(prevBoardBtn) prevBoardBtn.disabled=total<=1||idx<=0;
     if(nextBoardBtn) nextBoardBtn.disabled=total<=1||idx>=total-1;
+    if(deleteBoardBtn) deleteBoardBtn.disabled=total<=1;
   }
   function setActiveBoardIndex(index){
     if(!workspace.boards.length) return;
     if(index<0||index>=workspace.boards.length) return;
     if(workspace.boards[index].id===workspace.activeBoardId) return;
+    closeBoardDelete();
     flushSave();
     workspace.activeBoardId=workspace.boards[index].id;
     state=workspace.boards[index];
@@ -1146,6 +1178,7 @@
     flashStatus(`Berpindah ke ${state.name} 🧭`);
   }
   function addBoard(){
+    closeBoardDelete();
     flushSave();
     const next=createEmptyBoard(`Papan ${workspace.boards.length+1}`);
     workspace.boards.push(next);
@@ -1156,6 +1189,21 @@
     renderAll();
     save();
     flashStatus(`${next.name} ditambahkan`);
+  }
+  function closeBoardDelete(){ boardDeletePrompt.classList.remove("show"); pendingDeleteBoardId=null; }
+  function requestBoardDelete(){
+    if(workspace.boards.length<=1){ flashStatus("Papan terakhir tidak dapat dihapus",true); return; }
+    pendingDeleteBoardId=state.id;
+    boardDeleteCopy.textContent=`${state.name} beserta ${state.cards.length} kartu akan dihapus permanen. Export dulu jika masih dibutuhkan.`;
+    boardDeletePrompt.classList.add("show");
+  }
+  function deleteActiveBoard(){
+    const idx=workspace.boards.findIndex(b=>b.id===pendingDeleteBoardId);
+    if(workspace.boards.length<=1||idx<0){ closeBoardDelete(); return; }
+    flushSave(); const removed=workspace.boards[idx],wasActive=removed.id===workspace.activeBoardId;
+    workspace.boards.splice(idx,1); if(wasActive) workspace.activeBoardId=workspace.boards[Math.min(idx,workspace.boards.length-1)].id;
+    state=getActiveBoard(); selectedLink=null; hideLinkDel(); hideImageResizeOverlay(); closeBoardDelete(); renderAll(); persistNow();
+    flashStatus(`${removed.name} dihapus`,true);
   }
 
   /* ---------- Transform dunia ---------- */
@@ -1466,6 +1514,15 @@
       colBtn.addEventListener("click",()=>{ const i=COLORS.indexOf(card.color); card.color=COLORS[(i+1)%COLORS.length]; el.style.background=card.color; save(); });
       btns.appendChild(colBtn);
     }
+    if(card.type==="text"){
+      [["A−",-4,"Perkecil font"],["A+",4,"Perbesar font"]].forEach(opt=>{
+        const b=document.createElement("button"); b.className="hbtn font-btn"; b.textContent=opt[0]; b.title=opt[2];
+        b.addEventListener("pointerdown",e=>e.stopPropagation()); b.addEventListener("click",()=>{
+          card.fontSize=Math.max(14,Math.min(96,(card.fontSize||36)+opt[1]));
+          const body=el.querySelector(".text-card-body"); if(body) body.style.fontSize=card.fontSize+"px"; save(); redrawLinks();
+        }); btns.appendChild(b);
+      });
+    }
     const linkBtn=document.createElement("button"); linkBtn.className="hbtn link"; linkBtn.title="Seret ke kartu lain untuk menghubungkan";
     linkBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="12" r="2.4" fill="currentColor"/><circle cx="18" cy="12" r="2.4" fill="currentColor"/><path d="M8.4 12h7.2"/></svg>';
     linkBtn.addEventListener("pointerdown",e=>{ e.stopPropagation(); startConnector(card,e); });
@@ -1479,7 +1536,12 @@
     });
     btns.appendChild(delBtn); head.appendChild(btns); el.appendChild(head);
 
-    if(card.type==="note"){
+    if(card.type==="text"){
+      const body=document.createElement("div"); body.className="text-card-body"; body.contentEditable="true";
+      body.spellcheck=false; body.dataset.ph="Tulis judul…"; body.textContent=card.text||""; body.style.fontSize=(card.fontSize||36)+"px";
+      body.addEventListener("input",()=>{ card.text=body.textContent; save(); redrawLinks(); });
+      ["pointerdown","mousedown","click"].forEach(type=>body.addEventListener(type,e=>{ e.stopPropagation(); body.focus(); })); el.appendChild(body);
+    }else if(card.type==="note"){
       const body=document.createElement("div"); body.className="note-body";
       body.contentEditable="true"; body.spellcheck=false; body.dataset.ph="Tulis catatan…"; body.innerHTML=sanitizeHTML(card.text||"");
       bindNoteImages(body);
@@ -2231,6 +2293,11 @@
     const card={id:uid(),type:"note",x:Math.round(x),y:Math.round(y),color:COLORS[Math.floor(Math.random()*COLORS.length)],text:""};
     state.cards.push(card); const el=makeCard(card); el.querySelector(".note-body").focus(); save(); redrawLinks();
   }
+  function addText(){
+    const c=screenToWorld(board.clientWidth/2,board.clientHeight/2);
+    const card={id:uid(),type:"text",x:Math.round(c.x-180),y:Math.round(c.y-45),w:360,fontSize:36,text:""};
+    state.cards.push(card); const el=makeCard(card); el.querySelector(".text-card-body").focus(); save(); redrawLinks();
+  }
   function addTodo(){
     const c=screenToWorld(board.clientWidth/2,board.clientHeight/2);
     const card={id:uid(),type:"todo",x:Math.round(c.x-110),y:Math.round(c.y-70),title:"To-do",items:[{id:uid(),text:"",done:false}]};
@@ -2275,6 +2342,7 @@
   }
 
   document.getElementById("addNote").addEventListener("click",()=>addNote());
+  document.getElementById("addText").addEventListener("click",addText);
   document.getElementById("addTodo").addEventListener("click",addTodo);
   document.getElementById("addReminder").addEventListener("click",addReminder);
   let pendingImageTarget=null;
@@ -2304,6 +2372,9 @@
   prevBoardBtn.addEventListener("click",()=>setActiveBoardIndex(getActiveBoardIndex()-1));
   nextBoardBtn.addEventListener("click",()=>setActiveBoardIndex(getActiveBoardIndex()+1));
   addBoardBtn.addEventListener("click",addBoard);
+  deleteBoardBtn.addEventListener("click",requestBoardDelete);
+  document.getElementById("cancelDeleteBoard").addEventListener("click",closeBoardDelete);
+  document.getElementById("confirmDeleteBoard").addEventListener("click",deleteActiveBoard);
   document.getElementById("exportBtn").addEventListener("click",()=>{
     const jsonStr=JSON.stringify(workspace,null,2);
     copyToClipboard(jsonStr);
@@ -2365,6 +2436,7 @@
   /* ---------- Text Formatting Actions ---------- */
   document.addEventListener("focusin",(e)=>{
     const target=e.target;
+    if(target&&target.closest&&target.closest(".text-card-body")){ document.getElementById("textToolbar").style.display="none"; return; }
     if(target && target.closest && (target.contentEditable==="true"||target.closest("[contenteditable='true']"))){
       document.getElementById("textToolbar").style.display="flex";
     }
